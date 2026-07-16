@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build
+dist/
+.next/
+out/
+build/
+coverage/
+
+# Runtime
+.turbo/
+.cache/
+
+# Testing
+.jest/
+cypress/screenshots/
+cypress/videos/
+
+# OS
+Thumbs.db
+
+# Supabase
+supabase/.branches/
+supabase/migrations/
+
+# Local
+.env.local
+.env.*.local

@@ -1,0 +1,76 @@
+# Supabase Configuration File
+
+[api]
+# You can set these in your environment variables instead for better security
+# SUPABASE_URL="https://project-ref.supabase.co"
+# SUPABASE_KEY="your-api-key"
+
+enabled = true
+max_body_size = "52mb"
+default_query_only_on_rest_mode = true
+
+[db]
+port = 5432
+dialect = "postgres"
+shadow_database_url = "postgresql://postgres:postgres@localhost:54321/postgres"
+
+[realtime]
+enabled = true
+max_bytes_per_second = 1000000
+max_connections = 1000
+max_slot_wal_keep_size = 1000
+
+[studio]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_secret = "your-jwt-secret-change-in-production"
+jwt_exp = 3600
+refresh_token_rotation_enabled = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+email_confirmations_enabled = false
+other = {}
+
+[auth.email]
+enable_confirmations = false
+double_confirm_changes = true
+enable_recovery = true
+max_enrolled_factors = 10
+
+[auth.phone]
+enable_confirmations = false
+test_otp = "000000"
+
+[storage]
+enabled = true
+file_size_limit = 52428800
+
+[storage.buckets.avatars]
+public = true
+file_size_limit = 5242880
+
+[storage.buckets.documents]
+public = false
+file_size_limit = 52428800
+
+[functions]
+enabled = true
+runtime = "edge"
+deno_config = "./functions/.env.json"
+verify_jwt = true
+
+[realtime.max_concurrent_users]
+free_tier = 100
+pro_tier = 500
+
+[realtime.max_event_channels]
+free_tier = 10
+pro_tier = 100
+
+[realtime.max_message_size]
+free_tier = 8000
+pro_tier = 32000

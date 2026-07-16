@@ -1,0 +1,33 @@
+{
+  "name": "romaneio",
+  "version": "0.1.0",
+  "description": "AI-powered platform for exam preparation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "pnpm -r format",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules .turbo"
+  },
+  "keywords": [
+    "education",
+    "exams",
+    "ai",
+    "flashcards",
+    "practice"
+  ],
+  "author": "maxdias@imaxsi.com",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
