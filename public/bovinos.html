@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Bovinos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-size {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        #page-size:hover {
+            border-color: var(--primary-color);
+        }
+        #page-size:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html" class="active"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Gerenciar Bovinos</h2>
+            </div>
+
+            <form id="boi-form">
+                <input type="hidden" id="boi-id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="boi-name" required placeholder="Ex: BR-123">
+                    </div>
+                    <div class="form-group">
+                        <label>Brinco</label>
+                        <input type="text" id="boi-brinco" placeholder="Ex: 001234">
+                    </div>
+                    <div class="form-group">
+                        <label>Raça</label>
+                        <select id="boi-raca">
+                            <option value="">Selecione a raça</option>
+                            <option value="Aberdeen">Aberdeen</option>
+                            <option value="Anelorado">Anelorado</option>
+                            <option value="Braford">Braford</option>
+                            <option value="Cruzado">Cruzado</option>
+                            <option value="Hereford">Hereford</option>
+                            <option value="Nelore">Nelore</option>
+                            <option value="Red Angus">Red Angus</option>
+                            <option value="Semepol">Semepol</option>
+                            <option value="Simental">Simental</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Peso Inicial Compra (kg)</label>
+                        <input type="number" step="0.01" id="boi-weight" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Chegada</label>
+                        <input type="date" id="boi-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Vendedor</label>
+                        <input type="text" id="boi-vendedor" placeholder="Nome do vendedor">
+                    </div>
+                    <div class="form-group">
+                        <label>Local de Compra</label>
+                        <input type="text" id="boi-local-compra" placeholder="Cidade/Estado">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor do Boi R$</label>
+                        <input type="number" step="0.01" id="boi-valor" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor da Comissão</label>
+                        <input type="number" step="0.01" id="boi-comissao" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor do Frete</label>
+                        <input type="number" step="0.01" id="boi-frete" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor por Kg</label>
+                        <input type="text" id="boi-valor-kg" readonly style="background-color: #f0f0f0; cursor: not-allowed;" placeholder="Calculado automático">
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end;">
+                         <button type="submit" class="btn-primary">Salvar</button>
+                         <button type="button" onclick="resetForm()" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Filter Section -->
+            <div class="filter-section" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">Filtros de Pesquisa</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="filter-boton" list="boton-list" placeholder="Digite o BOTON">
+                        <datalist id="boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Brinco</label>
+                        <input type="text" id="filter-brinco" list="brinco-list" placeholder="Digite o brinco">
+                        <datalist id="brinco-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Raça</label>
+                        <select id="filter-raca">
+                            <option value="">Todas</option>
+                            <option value="Aberdeen">Aberdeen</option>
+                            <option value="Anelorado">Anelorado</option>
+                            <option value="Braford">Braford</option>
+                            <option value="Cruzado">Cruzado</option>
+                            <option value="Hereford">Hereford</option>
+                            <option value="Nelore">Nelore</option>
+                            <option value="Red Angus">Red Angus</option>
+                            <option value="Semepol">Semepol</option>
+                            <option value="Simental">Simental</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Chegada</label>
+                        <input type="date" id="filter-data">
+                    </div>
+                    <div class="form-group">
+                        <label>Vendedor</label>
+                        <input type="text" id="filter-vendedor" list="vendedor-list" placeholder="Digite o vendedor">
+                        <datalist id="vendedor-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Local de Compra</label>
+                        <input type="text" id="filter-local" list="local-list" placeholder="Digite o local">
+                        <datalist id="local-list"></datalist>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <button onclick="applyFilters()" type="button" class="btn-primary">Aplicar Filtros</button>
+                    <button onclick="clearFilters()" type="button" class="btn-cancel">Limpar Filtros</button>
+                </div>
+            </div>
+
+            <!-- Export Button -->
+            <div style="margin-bottom: 1rem; text-align: right;">
+                <button onclick="exportToPDF()" type="button" class="btn-primary" style="background: #27ae60;">
+                    📄 Exportar para PDF
+                </button>
+            </div>
+
+            <div class="table-container">
+                <table id="bois-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>BOTON</th>
+                            <th>Brinco</th>
+                            <th>Raça</th>
+                            <th>Peso Inicial</th>
+                            <th>Data Chegada</th>
+                            <th>Vendedor</th>
+                            <th>Local Compra</th>
+                            <th>Valor Boi</th>
+                            <th>Comissão</th>
+                            <th>Frete</th>
+                            <th>Valor/Kg</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: #666; font-size: 0.9rem;">Registros por página:</span>
+                    <select id="page-size">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span id="page-info" style="color: #666; font-size: 0.9rem; margin-left: 1rem;"></span>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="first-page" class="pagination-btn">
+                        ««
+                    </button>
+                    <button id="prev-page" class="pagination-btn">
+                        ‹ Anterior
+                    </button>
+                    <button id="next-page" class="pagination-btn">
+                        Próxima ›
+                    </button>
+                    <button id="last-page" class="pagination-btn">
+                        »»
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('boi-form');
+        const tableBody = document.querySelector('#bois-table tbody');
+
+        // Function to calculate valor por kg
+        function calculateValorPorKg() {
+            const peso = parseFloat(document.getElementById('boi-weight').value) || 0;
+            const valorBoi = parseFloat(document.getElementById('boi-valor').value) || 0;
+            const comissao = parseFloat(document.getElementById('boi-comissao').value) || 0;
+            const frete = parseFloat(document.getElementById('boi-frete').value) || 0;
+            
+            if (peso > 0) {
+                const totalValue = valorBoi + comissao + frete;
+                const valorPorKg = totalValue / peso;
+                document.getElementById('boi-valor-kg').value = 'R$ ' + valorPorKg.toFixed(2);
+            } else {
+                document.getElementById('boi-valor-kg').value = '';
+            }
+        }
+
+        // Pagination state
+        let allBois = [];
+        let filteredBois = [];
+        let currentPage = 1;
+        let pageSize = 10;
+
+        // Add event listeners for automatic calculation
+        document.getElementById('boi-weight').addEventListener('input', calculateValorPorKg);
+        document.getElementById('boi-valor').addEventListener('input', calculateValorPorKg);
+        document.getElementById('boi-comissao').addEventListener('input', calculateValorPorKg);
+        document.getElementById('boi-frete').addEventListener('input', calculateValorPorKg);
+
+        async function loadBois() {
+            try {
+                const res = await fetch('/api/bois');
+                if (!res.ok) {
+                    throw new Error(`Erro ao carregar dados: ${res.status} ${res.statusText}`);
+                }
+                const data = await res.json();
+                
+                if (Array.isArray(data)) {
+                    allBois = data;
+                    filteredBois = allBois;
+                    populateAutocomplete();
+                    renderPage();
+                } else {
+                    console.error('Dados inválidos recebidos da API:', data);
+                    alert('Erro: Formato de dados inválido recebido do servidor.');
+                }
+            } catch (error) {
+                console.error('Erro em loadBois:', error);
+                alert('Falha ao carregar lista de bovinos. Verifique se o servidor está rodando.');
+            }
+        }
+
+        function renderPage() {
+            const totalRecords = filteredBois.length;
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            // Ensure current page is valid
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = filteredBois.slice(startIndex, endIndex);
+            
+            // Render table
+            // Render table logic continues below
+            
+            tableBody.innerHTML = pageData.map(b => {
+                let statusIcon = '';
+                if (b.baixa_status) {
+                    const statusClass = b.baixa_status === 'Vendido' ? 'status-vendido' : 'status-morreu';
+                    statusIcon = `<div class="tooltip"><span class="status-dot ${statusClass}"></span><span class="tooltiptext">${b.baixa_status}</span></div>`;
+                }
+
+                return `
+                <tr>
+                    <td>${b.id}</td>
+                    <td style="display:flex; align-items:center;">${statusIcon}${b.name}</td>
+                    <td>${b.brinco || '-'}</td>
+                    <td>${b.raca || '-'}</td>
+                    <td>${b.initial_weight || '-'}</td>
+                    <td>${b.arrival_date || '-'}</td>
+                    <td>${b.vendedor || '-'}</td>
+                    <td>${b.local_compra || '-'}</td>
+                    <td>${b.valor_boi ? 'R$ ' + parseFloat(b.valor_boi).toFixed(2) : '-'}</td>
+                    <td>${b.valor_comissao ? 'R$ ' + parseFloat(b.valor_comissao).toFixed(2) : '-'}</td>
+                    <td>${b.valor_frete ? 'R$ ' + parseFloat(b.valor_frete).toFixed(2) : '-'}</td>
+                    <td>${b.valor_por_kg != null && b.valor_por_kg > 0 ? 'R$ ' + parseFloat(b.valor_por_kg).toFixed(2) : '-'}</td>
+                    <td>
+                        <button onclick="editBoi(${b.id}, ${JSON.stringify(b).replace(/"/g, '&quot;')})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button onclick="deleteBoi(${b.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                    </td>
+                </tr>
+            `}).join('');
+
+            
+            // Update pagination info
+            const pageInfo = document.getElementById('page-info');
+            if (totalRecords === 0) {
+                pageInfo.textContent = 'Nenhum registro encontrado';
+            } else {
+                pageInfo.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} registros`;
+            }
+            
+            // Update button states
+            const firstBtn = document.getElementById('first-page');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+            const lastBtn = document.getElementById('last-page');
+            
+            firstBtn.disabled = currentPage === 1;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages || totalRecords === 0;
+            lastBtn.disabled = currentPage === totalPages || totalRecords === 0;
+            
+            // Update button styles
+            [firstBtn, prevBtn, nextBtn, lastBtn].forEach(btn => {
+                if (btn.disabled) {
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                } else {
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                }
+            });
+        }
+
+        // Pagination event listeners
+        document.getElementById('page-size').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('first-page').addEventListener('click', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredBois.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        document.getElementById('last-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredBois.length / pageSize);
+            currentPage = totalPages;
+            renderPage();
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('boi-id').value;
+            const name = document.getElementById('boi-name').value;
+            const initial_weight = document.getElementById('boi-weight').value;
+            const arrival_date = document.getElementById('boi-date').value;
+            const brinco = document.getElementById('boi-brinco').value;
+            const raca = document.getElementById('boi-raca').value;
+            const vendedor = document.getElementById('boi-vendedor').value;
+            const local_compra = document.getElementById('boi-local-compra').value;
+            const valor_boi = document.getElementById('boi-valor').value;
+            const valor_comissao = document.getElementById('boi-comissao').value;
+            const valor_frete = document.getElementById('boi-frete').value;
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/bois/${id}` : '/api/bois';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name, 
+                        initial_weight, 
+                        arrival_date, 
+                        brinco, 
+                        raca, 
+                        vendedor, 
+                        local_compra, 
+                        valor_boi, 
+                        valor_comissao, 
+                        valor_frete 
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Erro ao salvar dados');
+                }
+
+                resetForm();
+                await loadBois();
+
+                if (id) {
+                    showMessage('<span class="toast-title">Atenção</span>Registro alterado com sucesso!', 'warning');
+                } else {
+                    showMessage('<span class="toast-title">Sucesso</span>Registro salvo com sucesso!', 'success');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar:', error);
+                showMessage(`<span class="toast-title">Erro</span>Erro ao salvar registro: ${error.message}`, 'error');
+            }
+        });
+
+        window.editBoi = (id, boiData) => {
+            document.getElementById('boi-id').value = id;
+            document.getElementById('boi-name').value = boiData.name || '';
+            document.getElementById('boi-weight').value = boiData.initial_weight || '';
+            document.getElementById('boi-date').value = boiData.arrival_date || '';
+            document.getElementById('boi-brinco').value = boiData.brinco || '';
+            document.getElementById('boi-raca').value = boiData.raca || '';
+            document.getElementById('boi-vendedor').value = boiData.vendedor || '';
+            document.getElementById('boi-local-compra').value = boiData.local_compra || '';
+            document.getElementById('boi-valor').value = boiData.valor_boi || '';
+            document.getElementById('boi-comissao').value = boiData.valor_comissao || '';
+            document.getElementById('boi-frete').value = boiData.valor_frete || '';
+            
+            // Recalculate valor por kg
+            calculateValorPorKg();
+        };
+
+        window.deleteBoi = async (id) => {
+            showConfirmModal(
+                'Confirmação',
+                'Deseja excluir o registro?',
+                async () => {
+                    try {
+                        const response = await fetch(`/api/bois/${id}`, { method: 'DELETE' });
+                        if (response.ok) {
+                            await loadBois();
+                            if (filteredBois.length > 0 && currentPage > Math.ceil(filteredBois.length / pageSize)) {
+                                currentPage = 1;
+                            }
+                            showMessage('<span class="toast-title">Sucesso</span>Registro excluído com sucesso!', 'error');
+                        } else {
+                            const err = await response.json();
+                            showMessage(`<span class="toast-title">Erro</span>Erro ao excluir registro: ${err.error || response.statusText}`, 'error');
+                        }
+                    } catch (error) {
+                        showMessage(`<span class="toast-title">Erro</span>Erro ao excluir registro: ${error.message}`, 'error');
+                    }
+                }
+            );
+        };
+
+        window.resetForm = () => {
+            document.getElementById('boi-id').value = '';
+            form.reset();
+        };
+
+        // Autocomplete population
+        function populateAutocomplete() {
+            const botonSet = new Set();
+            const brincoSet = new Set();
+            const vendedorSet = new Set();
+            const localSet = new Set();
+            
+            allBois.forEach(b => {
+                if (b.name) botonSet.add(b.name);
+                if (b.brinco) brincoSet.add(b.brinco);
+                if (b.vendedor) vendedorSet.add(b.vendedor);
+                if (b.local_compra) localSet.add(b.local_compra);
+            });
+            
+            document.getElementById('boton-list').innerHTML = Array.from(botonSet).map(v => `<option value="${v}">`).join('');
+            document.getElementById('brinco-list').innerHTML = Array.from(brincoSet).map(v => `<option value="${v}">`).join('');
+            document.getElementById('vendedor-list').innerHTML = Array.from(vendedorSet).map(v => `<option value="${v}">`).join('');
+            document.getElementById('local-list').innerHTML = Array.from(localSet).map(v => `<option value="${v}">`).join('');
+        }
+
+        // Filter functions
+        function applyFilters() {
+            const boton = document.getElementById('filter-boton').value.toLowerCase();
+            const brinco = document.getElementById('filter-brinco').value.toLowerCase();
+            const raca = document.getElementById('filter-raca').value;
+            const data = document.getElementById('filter-data').value;
+            const vendedor = document.getElementById('filter-vendedor').value.toLowerCase();
+            const local = document.getElementById('filter-local').value.toLowerCase();
+            
+            filteredBois = allBois.filter(b => {
+                return (!boton || (b.name && b.name.toLowerCase().includes(boton))) &&
+                       (!brinco || (b.brinco && b.brinco.toLowerCase().includes(brinco))) &&
+                       (!raca || b.raca === raca) &&
+                       (!data || b.arrival_date === data) &&
+                       (!vendedor || (b.vendedor && b.vendedor.toLowerCase().includes(vendedor))) &&
+                       (!local || (b.local_compra && b.local_compra.toLowerCase().includes(local)));
+            });
+            
+            currentPage = 1;
+            renderPage();
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-boton').value = '';
+            document.getElementById('filter-brinco').value = '';
+            document.getElementById('filter-raca').value = '';
+            document.getElementById('filter-data').value = '';
+            document.getElementById('filter-vendedor').value = '';
+            document.getElementById('filter-local').value = '';
+            filteredBois = allBois;
+            currentPage = 1;
+            renderPage();
+        }
+
+        // PDF Export function
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation
+            
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+            
+            // Title
+            doc.setFontSize(16);
+            doc.text('Gerenciar Bovinos', 14, 15);
+            
+            // Prepare table data from filtered results
+            const tableData = filteredBois.map(b => [
+                b.id,
+                b.name,
+                b.brinco || '-',
+                b.raca || '-',
+                b.initial_weight || '-',
+                b.arrival_date || '-',
+                b.vendedor || '-',
+                b.local_compra || '-',
+                b.valor_boi ? 'R$ ' + parseFloat(b.valor_boi).toFixed(2) : '-',
+                b.valor_por_kg ? 'R$ ' + parseFloat(b.valor_por_kg).toFixed(2) : '-'
+            ]);
+            
+            // Generate table
+            doc.autoTable({
+                head: [['ID', 'BOTON', 'Brinco', 'Raça', 'Peso', 'Data', 'Vendedor', 'Local', 'Valor Boi', 'Valor/Kg']],
+                body: tableData,
+                startY: 20,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [41, 128, 185] }
+            });
+            
+            // Save with timestamp filename
+            doc.save(`Gerenciar_Bovinos_${timestamp}.pdf`);
+        }
+
+        // Notification Function
+        function showMessage(msg, type) {
+            // Remove any existing message
+            const existingMsg = document.querySelector('.success-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            // Create new message
+            const msgDiv = document.createElement('div');
+            // Mapping types to CSS classes
+            // type 'success' -> green (toast-success)
+            // type 'warning' -> yellow (toast-warning)
+            // type 'error'   -> red (toast-error)
+            
+            let className = 'success-message';
+            if (type === 'success') className += ' toast-success';
+            else if (type === 'warning') className += ' toast-warning';
+            else if (type === 'error') className += ' toast-error';
+            
+            msgDiv.className = className;
+            msgDiv.innerHTML = msg;
+            
+            document.body.appendChild(msgDiv);
+            
+            // Remove after 5 seconds with animation
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const overlay = document.getElementById('confirmation-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            titleEl.textContent = title;
+            bodyEl.textContent = message;
+
+            // Show modal
+            overlay.classList.add('active');
+
+            // Handle Confirm
+            const handleConfirm = () => {
+                onConfirm();
+                closeModal();
+                cleanup();
+            };
+
+            // Handle Cancel
+            const handleCancel = () => {
+                closeModal();
+                cleanup();
+            };
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            confirmBtn.onclick = handleConfirm;
+            cancelBtn.onclick = handleCancel;
+        }
+
+        function closeModal() {
+            document.getElementById('confirmation-modal').classList.remove('active');
+        }
+
+        loadBois();
+    </script>
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-container">
+            <h3 class="modal-title" id="modal-title">Título</h3>
+            <p class="modal-body" id="modal-body">Mensagem...</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="btn-cancel">Não</button>
+                <button id="modal-confirm-btn" class="btn-primary">Sim</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

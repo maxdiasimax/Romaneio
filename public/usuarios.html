@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Cadastro de Usuários</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html" class="active"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Gerenciar Usuários</h2>
+            </div>
+
+            <form id="usuario-form">
+                <input type="hidden" id="usuario-id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input type="text" id="usuario-name" required placeholder="Nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Usuário</label>
+                        <input type="text" id="usuario-username" required placeholder="Nome de usuário">
+                    </div>
+                    <div class="form-group">
+                        <label>Senha</label>
+                        <input type="password" id="usuario-password" placeholder="Senha (deixe em branco para manter)">
+                    </div>
+                    <div class="form-group">
+                        <label>Celular</label>
+                        <input type="text" id="usuario-celular" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="form-group">
+                        <label>Perfil</label>
+                        <select id="usuario-profile" required>
+                            <option value="">Selecione...</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Usuário">Usuário</option>
+                        </select>
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end;">
+                         <button type="submit" class="btn-primary">Salvar</button>
+                         <button type="button" onclick="resetForm()" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-container">
+                <table id="usuarios-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Usuário</th>
+                            <th>Celular</th>
+                            <th>Perfil</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('usuario-form');
+        const tableBody = document.querySelector('#usuarios-table tbody');
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        async function loadUsuarios() {
+            const res = await fetch('/api/users');
+            const data = await res.json();
+            tableBody.innerHTML = data.map(u => `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${u.name}</td>
+                    <td>${u.username}</td>
+                    <td>${u.celular || '-'}</td>
+                    <td>${u.profile}</td>
+                    <td>
+                        <button onclick="editUsuario(${u.id}, '${escapeHtml(u.name)}', '${escapeHtml(u.username)}', '${escapeHtml(u.celular || '')}', '${u.profile}')" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button onclick="confirmDeleteUsuario(${u.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // --- Notification & Modal Logic ---
+
+        function showMessage(msg, type) {
+            // Remove any existing message
+            const existingMsg = document.querySelector('.success-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            // Create new message
+            const msgDiv = document.createElement('div');
+            // type maps to: 'success' -> green, 'warning' -> yellow, 'error' -> red
+            let className = 'success-message';
+            if (type === 'success') className += ' toast-success';
+            else if (type === 'warning') className += ' toast-warning';
+            else if (type === 'error') className += ' toast-error';
+            
+            msgDiv.className = className;
+            msgDiv.innerHTML = msg;
+            
+            document.body.appendChild(msgDiv);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const overlay = document.getElementById('confirmation-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            titleEl.textContent = title;
+            bodyEl.textContent = message;
+
+            // Show modal
+            overlay.classList.add('active');
+
+            // Handle Confirm
+            const handleConfirm = () => {
+                onConfirm();
+                closeModal();
+                cleanup();
+            };
+
+            // Handle Cancel
+            const handleCancel = () => {
+                closeModal();
+                cleanup();
+            };
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
+        }
+
+        function closeModal() {
+            document.getElementById('confirmation-modal').classList.remove('active');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('usuario-id').value;
+            const name = document.getElementById('usuario-name').value;
+            const username = document.getElementById('usuario-username').value;
+            const password = document.getElementById('usuario-password').value;
+            const celular = document.getElementById('usuario-celular').value;
+            const profile = document.getElementById('usuario-profile').value;
+
+            // Validate password for new users
+            if (!id && !password) {
+                alert('Senha é obrigatória para novos usuários');
+                return;
+            }
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/users/${id}` : '/api/users';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username, password, celular, profile })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showMessage(`<span class="toast-title">Erro</span>${error.error || 'Erro ao salvar usuário'}`, 'error');
+                    return;
+                }
+
+                resetForm();
+                loadUsuarios();
+                if (id) {
+                    showMessage('<span class="toast-title">Atenção</span>Registro alterado com sucesso!', 'warning');
+                } else {
+                    showMessage('<span class="toast-title">Sucesso</span>Registro salvo com sucesso!', 'success');
+                }
+            } catch (err) {
+                showMessage(`<span class="toast-title">Erro</span>Erro ao salvar usuário: ${err.message}`, 'error');
+            }
+        });
+
+        window.editUsuario = (id, name, username, celular, profile) => {
+            document.getElementById('usuario-id').value = id;
+            document.getElementById('usuario-name').value = name;
+            document.getElementById('usuario-username').value = username;
+            document.getElementById('usuario-celular').value = celular;
+            document.getElementById('usuario-profile').value = profile;
+            document.getElementById('usuario-password').placeholder = 'Deixe em branco para manter a senha atual';
+        };
+
+        window.confirmDeleteUsuario = async (id) => {
+            showConfirmModal(
+                'Confirmação',
+                'Deseja excluir o registro?',
+                async () => {
+                    try {
+                        const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                        if(res.ok) {
+                            loadUsuarios();
+                            showMessage('<span class="toast-title">Sucesso</span>Registro excluído com sucesso!', 'error');
+                        } else {
+                            showMessage('<span class="toast-title">Erro</span>Erro ao excluir usuário', 'error');
+                        }
+                    } catch (err) {
+                        showMessage(`<span class="toast-title">Erro</span>Erro ao excluir usuário: ${err.message}`, 'error');
+                    }
+                }
+            );
+        };
+
+        window.resetForm = () => {
+            document.getElementById('usuario-id').value = '';
+            document.getElementById('usuario-password').placeholder = 'Senha (deixe em branco para manter)';
+            form.reset();
+        };
+
+        loadUsuarios();
+    </script>
+    <script src="js/header-utils.js"></script>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-container">
+            <h3 class="modal-title" id="modal-title">Título</h3>
+            <p class="modal-body" id="modal-body">Mensagem...</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="btn-cancel">Não</button>
+                <button id="modal-confirm-btn" class="btn-primary">Sim</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

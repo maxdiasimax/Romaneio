@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Manejo de Pasto</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <!-- JSPDF for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            cursor: help;
+        }
+        .status-vendido { background-color: #27ae60; }
+        .status-morreu { background-color: #e74c3c; }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 80px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            padding: 5px 0;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -40px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Filter Styles */
+        .filters-section {
+            background: #fff;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #ddd;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .filters-section .form-group {
+            margin-bottom: 0;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html" class="active"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Manejo: BOTON em Pasto</h2>
+
+            </div>
+            
+            <form id="manejo-form">
+                <input type="hidden" id="manejo-id" name="id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Seleciona o BOTON</label>
+                        <!-- Autocomplete Implementation -->
+                        <input list="bois-list" id="boi-input" placeholder="Digite o nome do BOTON" required autocomplete="off">
+                        <datalist id="bois-list"></datalist>
+                        <input type="hidden" id="boi-id" name="boi_id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Seleciona a Fazenda</label>
+                         <input list="fazendas-list" id="fazenda-input" placeholder="Digite a Fazenda" required autocomplete="off">
+                        <datalist id="fazendas-list"></datalist>
+                        <input type="hidden" id="fazenda-id" name="fazenda_id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Seleciona o Pasto</label>
+                         <input list="pastos-list" id="pasto-input" placeholder="Digite o Pasto" required autocomplete="off">
+                        <datalist id="pastos-list"></datalist>
+                        <input type="hidden" id="pasto-id" name="pasto_id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Peso Inicial Manejo (kg)</label>
+                        <input type="number" step="0.01" name="initial_weight_manejo" required oninput="calculateTotals()">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-cancel" onclick="resetForm()">Limpar</button>
+                    <button type="button" class="btn-primary" onclick="document.getElementById('manejo-form').requestSubmit()">Salvar</button>
+                </div>
+                <div class="weights-section">
+                    <h3>Área de Pesagem</h3>
+                    <div class="weights-grid" id="weights-container">
+                        <!-- Generated by JS -->
+                    </div>
+                    
+                    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2rem;">
+                        <div>Total Pesos Registrados (Qtd): <span id="total-count">0</span></div>
+                        <div>Total dos Pesos (Soma): <span id="total-sum">0.00</span> kg (Ganho)</div>
+                    </div>
+                </div>
+
+
+                <div style="margin-top: 2rem; text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-cancel" onclick="resetForm()" style="display:none;" id="btn-cancel">Cancelar Edição</button>
+                    <button type="submit" class="btn-primary" style="width: auto; padding: 1rem 2rem;">Salvar Manejo</button>
+                </div>
+            </form>
+
+            <!-- Manejo History Section -->
+            <div class="table-header" style="margin-top: 3rem; border-top: 1px solid #ddd; padding-top: 2rem;">
+                <h2>Histórico de Manejos</h2>
+                <button onclick="exportToPDF()" class="btn-primary" style="background-color: #e74c3c;">Exportar PDF</button>
+            </div>
+            
+            <!-- Filters above Grid -->
+            <div class="filters-section">
+                <div class="form-group">
+                    <label>Filtrar por BOTON</label>
+                    <input type="text" id="filter-boi" list="bois-list" placeholder="Nome do BOTON" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Filtrar por Fazenda</label>
+                     <input list="filter-fazenda-list" id="filter-fazenda-input" placeholder="Todas">
+                     <datalist id="filter-fazenda-list"></datalist>
+                     <input type="hidden" id="filter-fazenda-id">
+                </div>
+                <div class="form-group">
+                    <label>Filtrar por Pasto</label>
+                     <input list="filter-pasto-list" id="filter-pasto-input" placeholder="Todos">
+                     <datalist id="filter-pasto-list"></datalist>
+                     <input type="hidden" id="filter-pasto-id">
+                </div>
+                <button class="btn-primary" onclick="loadManejoHistoryTable(1)">Filtrar</button>
+                <button class="btn-cancel" onclick="clearFilters()">Limpar</button>
+            </div>
+
+            <div style="display:flex; justify-content: flex-end; margin-bottom: 10px; align-items:center; gap:10px;">
+                    <span>Itens por página:</span>
+                    <select id="page-size" onchange="changePageSize()">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+            </div>
+
+            <div class="table-container">
+                <table id="manejo-table">
+                    <thead>
+                        <tr>
+                            <th>BOTON</th>
+                            <th>Fazenda</th>
+                            <th>Pasto</th>
+                            <th>Peso Inicial</th>
+                            <th>Último Peso (kg)</th> <!-- New Column -->
+                            <th>Ganho Total</th>
+                            <th>Qtd Pesos</th>
+                            <th>Data do Peso</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div id="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;">
+                    <!-- Inserted by JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        let allBois = [];
+        let allPastos = []; // Also init this to be safe
+        let allFazendas = [];
+        let currentPage = 1;
+        let itemsPerPage = 10;
+        let currentHistoryData = []; // Store for PDF export
+
+        // Generate 10 weight fields
+        const weightsContainer = document.getElementById('weights-container');
+        for (let i = 1; i <= 10; i++) {
+            const num = i.toString().padStart(2, '0');
+            weightsContainer.innerHTML += `
+                <div class="weight-row">
+                    <div class="form-group">
+                        <label>Peso ${num} (kg)</label>
+                        <input type="number" step="0.01" name="weight_${num}" class="weight-input" oninput="calculateTotals()">
+                    </div>
+                    <div class="form-group">
+                        <label>Data Peso ${num}</label>
+                        <input type="date" name="date_weight_${num}">
+                    </div>
+                </div>
+            `;
+        } // End for loop
+
+
+        async function init() {
+            try {
+                // Load Bois
+                const boiRes = await fetch('/api/bois');
+                allBois = await boiRes.json();
+                populateDatalist('bois-list', allBois);
+
+                // Load Fazendas
+                const fazRes = await fetch('/api/fazendas');
+                allFazendas = await fazRes.json();
+                populateDatalist('fazendas-list', allFazendas);
+                populateDatalist('filter-fazenda-list', allFazendas);
+
+                // Load Pastos (store locally for filtering)
+                const pasRes = await fetch('/api/pastos');
+                allPastos = await pasRes.json();
+                populateDatalist('filter-pasto-list', allPastos); // Populate filter initially with all
+                
+                setupAutocompleteListeners();
+
+            } catch (error) {
+                console.error("Error loading initial data:", error);
+            }
+        }
+        
+        function populateDatalist(elementId, items) {
+             const datalist = document.getElementById(elementId);
+             datalist.innerHTML = items.map(item => {
+                 const extra = item.baixa_status ? ` (${item.baixa_status})` : '';
+                 return `<option value="${item.name}${extra}" data-id="${item.id}">`;
+             }).join('');
+        }
+
+        function setupAutocompleteListeners() {
+            // Boi Input
+            setupInputListener('boi-input', 'boi-id', allBois, () => {
+                 return updateInitialWeight() || (document.getElementById('manejo-id').value ? null : checkAndLoadHistory());
+            });
+
+            // Fazenda Input: Filter Pastos on change
+            setupInputListener('fazenda-input', 'fazenda-id', allFazendas, () => {
+                 filterPastos();
+                 if(!document.getElementById('manejo-id').value) checkAndLoadHistory();
+            });
+
+            // Pasto Input
+            setupInputListener('pasto-input', 'pasto-id', allPastos, () => {
+                 if(!document.getElementById('manejo-id').value) checkAndLoadHistory();
+            });
+            
+            // Filter Fazenda
+            setupInputListener('filter-fazenda-input', 'filter-fazenda-id', allFazendas, () => {
+                // Could filter pasto filter list
+                const fazendaId = document.getElementById('filter-fazenda-id').value;
+                const pastoList = document.getElementById('filter-pasto-list');
+                if(fazendaId) {
+                    const filtered = allPastos.filter(p => p.fazenda_id == fazendaId);
+                    pastoList.innerHTML = filtered.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+                } else {
+                    pastoList.innerHTML = allPastos.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+                }
+            });
+            
+             // Filter Pasto
+            setupInputListener('filter-pasto-input', 'filter-pasto-id', allPastos);
+        }
+
+        function setupInputListener(inputId, hiddenId, listData, callback) {
+            const input = document.getElementById(inputId);
+            const hidden = document.getElementById(hiddenId);
+            
+            input.addEventListener('input', () => {
+                const val = input.value;
+                const match = listData.find(item => {
+                     const extra = item.baixa_status ? ` (${item.baixa_status})` : '';
+                     return (item.name + extra) === val;
+                });
+                
+                if(match) {
+                    hidden.value = match.id;
+                    if(callback) callback();
+                } else {
+                    hidden.value = ''; // Invalid/Incomplete
+                }
+            });
+            
+            // Also handle direct selection via change
+            input.addEventListener('change', () => {
+                 const val = input.value;
+                 const match = listData.find(item => {
+                     const extra = item.baixa_status ? ` (${item.baixa_status})` : '';
+                     return (item.name + extra) === val;
+                 });
+                 if(match) {
+                    hidden.value = match.id;
+                    if(callback) callback();
+                 } else {
+                    // hidden.value = ''; // Let input keep it empty or try to find partial? Strict match for ID.
+                 }
+            });
+        }
+
+        // Call init
+        document.addEventListener('DOMContentLoaded', init);
+
+        async function checkAndLoadHistory() {
+            if(document.getElementById('manejo-id').value) return;
+
+            const boiId = document.getElementById('boi-id').value;
+            const fazendaId = document.getElementById('fazenda-id').value;
+            const pastoId = document.getElementById('pasto-id').value;
+
+            if (boiId && fazendaId && pastoId) {
+                try {
+                    const res = await fetch(`/api/manejo/history?boi_id=${boiId}&fazenda_id=${fazendaId}&pasto_id=${pastoId}`);
+                    const data = await res.json();
+                    
+                    if (data) {
+                        for (let i = 1; i <= 10; i++) {
+                            const num = i.toString().padStart(2, '0');
+                            const wInput = document.querySelector(`input[name="weight_${num}"]`);
+                            const dInput = document.querySelector(`input[name="date_weight_${num}"]`);
+                            if (wInput) wInput.value = data[`weight_${num}`] || '';
+                            if (dInput) dInput.value = data[`date_weight_${num}`] || '';
+                        }
+                        calculateTotals();
+                    } else {
+                        clearWeightFields();
+                    }
+                } catch (err) {
+                    console.error("Error loading history:", err);
+                }
+            }
+        }
+
+        function clearWeightFields() {
+            for (let i = 1; i <= 10; i++) {
+                const num = i.toString().padStart(2, '0');
+                const wInput = document.querySelector(`input[name="weight_${num}"]`);
+                const dInput = document.querySelector(`input[name="date_weight_${num}"]`);
+                if (wInput) wInput.value = '';
+                if (dInput) dInput.value = '';
+            }
+            calculateTotals();
+        }
+
+        function updateInitialWeight() {
+            if(document.getElementById('manejo-id').value) return;
+
+            const boiId = document.getElementById('boi-id').value;
+            const weightInput = document.querySelector('input[name="initial_weight_manejo"]');
+            
+            if (!boiId) {
+                weightInput.value = '';
+                return;
+            }
+
+            const selectedBoi = allBois.find(b => b.id == boiId);
+            if (selectedBoi && selectedBoi.initial_weight) {
+                weightInput.value = selectedBoi.initial_weight;
+            } else {
+                weightInput.value = '';
+            }
+            // Recalculate as initial weight changes
+            calculateTotals();
+        }
+
+        function filterPastos(selectedPastoId = null) {
+            const fazendaId = document.getElementById('fazenda-id').value;
+            const pastoInput = document.getElementById('pasto-input');
+            const pastoList = document.getElementById('pastos-list');
+            
+            pastoInput.value = '';
+            document.getElementById('pasto-id').value = '';
+            pastoList.innerHTML = '';
+            
+            if (!fazendaId) return;
+
+            const filtered = allPastos.filter(p => p.fazenda_id == fazendaId);
+            pastoList.innerHTML = filtered.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+            
+            if(selectedPastoId) {
+                const p = filtered.find(p => p.id == selectedPastoId);
+                if(p) {
+                    pastoInput.value = p.name;
+                    document.getElementById('pasto-id').value = p.id;
+                }
+            }
+        }
+
+        function calculateTotals() {
+            const inputs = document.querySelectorAll('.weight-input');
+            
+            let lastWeight = 0;
+            let count = 0;
+            let hasWeight = false;
+
+            // Find the last filled weight
+            for(let i = inputs.length - 1; i >= 0; i--) {
+                const val = parseFloat(inputs[i].value);
+                if (!isNaN(val)) {
+                    if (!hasWeight) {
+                        lastWeight = val;
+                        hasWeight = true;
+                    }
+                    count++;
+                }
+            }
+
+            const initialWeight = parseFloat(document.querySelector('input[name="initial_weight_manejo"]').value) || 0;
+            
+            let gain = 0;
+            if (hasWeight) {
+                gain = lastWeight - initialWeight;
+            } else if (initialWeight > 0) {
+                 // if no weight inputs but has initial weight, gain is 0 (or -initial? No, usually 0 gain means no change, but "Gain" usually implies relative change. If we have initial but no new weights, gain is 0).
+                 gain = 0;
+            }
+
+            document.getElementById('total-sum').textContent = gain.toFixed(2);
+            document.getElementById('total-count').textContent = count;
+            
+            // Add color class
+            const sumEl = document.getElementById('total-sum');
+            if (gain > 0) sumEl.style.color = 'green';
+            else if (gain < 0) sumEl.style.color = 'red';
+            else sumEl.style.color = 'black';
+        }
+
+        document.getElementById('manejo-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            const id = data.id; // Hidden field
+            
+            if(!data.boi_id || !data.fazenda_id || !data.pasto_id) {
+                showToast('Selecione Boi, Fazenda e Pasto corretamente da lista.', 'Erro', 'toast-error');
+                return;
+            }
+
+            // We calculate 'Total dos Pesos (Soma)' purely for UI/User logic requested.
+            // But we must also check what backend expects.
+            // Backend probably just stores weight_1..10.
+            // 'total_weight_registered' and 'weights_count' might be stored.
+            // If we change logic on frontend, we should probably update what we save.
+            // The user asked to "Ajustar o cálculo do campo 'Total dos Pesos (Soma)'... para retornar somente o ganho".
+            // So we send the gain as 'total_weight_registered' if that's what's meant to be stored, OR we just display gain.
+            // Assuming we should save what's displayed to keep history consistent with the view logic.
+            
+            data.total_weight_registered = parseFloat(document.getElementById('total-sum').textContent);
+            data.weights_count = parseInt(document.getElementById('total-count').textContent);
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/manejo/${id}` : '/api/manejo';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) {
+                    if (id) {
+                         showMessage('<span class="toast-title">Atenção</span>Registro alterado com sucesso!', 'warning');
+                    } else {
+                         showMessage('<span class="toast-title">Sucesso</span>Registro salvo com sucesso!', 'success');
+                    }
+                    resetForm();
+                    loadManejoHistoryTable(currentPage);
+                } else {
+                    const err = await res.json();
+                    showMessage('<span class="toast-title">Erro</span>Erro: ' + err.error, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showMessage('<span class="toast-title">Erro</span>Erro ao salvar.', 'error');
+            }
+        });
+
+        async function loadManejoHistoryTable(page = 1) {
+            currentPage = page;
+            const boiName = document.getElementById('filter-boi').value;
+            const fazendaId = document.getElementById('filter-fazenda-id').value;
+            const pastoId = document.getElementById('filter-pasto-id').value;
+
+            let query = `?page=${page}&limit=${itemsPerPage}`;
+            if(boiName) query += `&boi_name=${encodeURIComponent(boiName)}`;
+            if(fazendaId) query += `&fazenda_id=${fazendaId}`;
+            if(pastoId) query += `&pasto_id=${pastoId}`;
+
+            try {
+                const res = await fetch(`/api/manejo${query}`);
+                const responseData = await res.json();
+                
+                const data = responseData.data;
+                currentHistoryData = data; // Save for export
+                const total = responseData.total;
+                const totalPages = responseData.totalPages;
+
+                const tbody = document.querySelector('#manejo-table tbody');
+                tbody.innerHTML = data.map(m => {
+                    const lastDate = m.last_weight_date ? formatDate(m.last_weight_date) : '-';
+                    const lastWeight = m.last_weight_value ? m.last_weight_value : '-';
+                    
+                    const gainDisplay = m.total_weight_registered || 0;
+
+                    let statusIcon = '';
+                    if (m.baixa_status) {
+                        const statusClass = m.baixa_status === 'Vendido' ? 'status-vendido' : 'status-morreu';
+                        statusIcon = `<div class="tooltip"><span class="status-dot ${statusClass}"></span><span class="tooltiptext">${m.baixa_status}</span></div>`;
+                    }
+                    return `
+                        <tr>
+                            <td style="display:flex; align-items:center;">${statusIcon}${m.boi_name || m.boi_id}</td>
+                            <td>${m.fazenda_name || m.fazenda_id}</td>
+                            <td>${m.pasto_name || m.pasto_id}</td>
+                            <td>${m.initial_weight_manejo || '-'}</td>
+                            <td>${lastWeight}</td>
+                            <td>${gainDisplay}</td>
+                            <td>${m.weights_count || 0}</td>
+                            <td>${lastDate}</td>
+                            <td>
+                                <button onclick="editManejo(${m.id})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                                <button onclick="deleteManejo(${m.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                renderPagination(totalPages);
+
+            } catch (err) {
+                console.error("Erro ao carregar histórico:", err);
+            }
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-boi').value = '';
+            document.getElementById('filter-fazenda-input').value = '';
+            document.getElementById('filter-fazenda-id').value = '';
+            document.getElementById('filter-pasto-input').value = '';
+            document.getElementById('filter-pasto-id').value = '';
+            loadManejoHistoryTable(1);
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('pagination-controls');
+            let html = '';
+            
+            if (totalPages > 1) {
+                html += `<button class="pagination-btn" onclick="loadManejoHistoryTable(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>`;
+                
+                html += `<span>Página ${currentPage} de ${totalPages}</span>`;
+                
+                html += `<button class="pagination-btn" onclick="loadManejoHistoryTable(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function changePageSize() {
+            itemsPerPage = document.getElementById('page-size').value;
+            loadManejoHistoryTable(1);
+        }
+
+        async function editManejo(id) {
+            try {
+                const res = await fetch(`/api/manejo/${id}`);
+                if(!res.ok) throw new Error("Not found");
+                const data = await res.json();
+                
+                // Populate Form
+                document.getElementById('manejo-id').value = data.id;
+                
+                // Set Inputs and Hidden IDs
+                const boi = allBois.find(b => b.id == data.boi_id);
+                if(boi) {
+                     const extra = boi.baixa_status ? ` (${boi.baixa_status})` : '';
+                     document.getElementById('boi-input').value = boi.name + extra;
+                     document.getElementById('boi-id').value = boi.id;
+                }
+                
+                const fazenda = allFazendas.find(f => f.id == data.fazenda_id);
+                if(fazenda) {
+                    document.getElementById('fazenda-input').value = fazenda.name;
+                    document.getElementById('fazenda-id').value = fazenda.id;
+                }
+                
+                // Trigger pasto filter then set value for Autocomplete
+                filterPastos(data.pasto_id);
+                
+                document.querySelector('input[name="initial_weight_manejo"]').value = data.initial_weight_manejo;
+                
+                // Weights
+                clearWeightFields(); 
+                for (let i = 1; i <= 10; i++) {
+                    const num = i.toString().padStart(2, '0');
+                    const wInput = document.querySelector(`input[name="weight_${num}"]`);
+                    const dInput = document.querySelector(`input[name="date_weight_${num}"]`);
+                    
+                    if (wInput) wInput.value = data[`weight_${num}`] || '';
+                    if (dInput) dInput.value = data[`date_weight_${num}`] || '';
+                }
+                
+                calculateTotals();
+                
+                // Show cancel button
+                document.getElementById('btn-cancel').style.display = 'inline-block';
+                
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+            } catch(err) {
+                console.error(err);
+                showToast("Erro ao carregar dados.", "Erro", "toast-error");
+            }
+        }
+
+        async function deleteManejo(id) {
+            showConfirmModal(
+                'Confirmação',
+                'Deseja excluir o registro?',
+                async () => {
+                    try {
+                        const res = await fetch(`/api/manejo/${id}`, { method: 'DELETE' });
+                        if(res.ok) {
+                            showMessage('<span class="toast-title">Sucesso</span>Registro excluído com sucesso!', 'error'); 
+                            if(document.getElementById('manejo-id').value == id) {
+                                resetForm();
+                            }
+                            loadManejoHistoryTable(currentPage);
+                        } else {
+                            showMessage('<span class="toast-title">Erro</span>Erro ao excluir', 'error');
+                        }
+                    } catch(err) {
+                        console.error(err);
+                        showMessage('<span class="toast-title">Erro</span>Erro ao excluir', 'error');
+                    }
+                }
+            );
+        }
+
+        function resetForm() {
+            document.getElementById('manejo-form').reset();
+            document.getElementById('manejo-id').value = '';
+            document.getElementById('boi-id').value = '';
+            document.getElementById('fazenda-id').value = '';
+            document.getElementById('pasto-id').value = '';
+            
+            document.getElementById('btn-cancel').style.display = 'none';
+            document.getElementById('pastos-list').innerHTML = ''; // Clear pasto choices
+            calculateTotals();
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+            const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+            return adjustedDate.toLocaleDateString('pt-BR');
+        }
+
+        // Notification Function
+        function showMessage(msg, type) {
+            // Remove any existing message
+            const existingMsg = document.querySelector('.success-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            // Create new message
+            const msgDiv = document.createElement('div');
+            // Mapping types to CSS classes
+            // type 'success' -> green (toast-success)
+            // type 'warning' -> yellow (toast-warning)
+            // type 'error'   -> red (toast-error)
+            
+            let className = 'success-message';
+            if (type === 'success') className += ' toast-success';
+            else if (type === 'warning') className += ' toast-warning';
+            else if (type === 'error') className += ' toast-error';
+            
+            msgDiv.className = className;
+            msgDiv.innerHTML = msg;
+            
+            document.body.appendChild(msgDiv);
+            
+            // Remove after 5 seconds with animation
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const overlay = document.getElementById('confirmation-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            titleEl.textContent = title;
+            bodyEl.textContent = message;
+
+            // Show modal
+            overlay.classList.add('active');
+
+            // Handle Confirm
+            const handleConfirm = () => {
+                onConfirm();
+                closeModal();
+                cleanup();
+            };
+
+            // Handle Cancel
+            const handleCancel = () => {
+                closeModal();
+                cleanup();
+            };
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            confirmBtn.onclick = handleConfirm;
+            cancelBtn.onclick = handleCancel;
+        }
+
+        function closeModal() {
+            document.getElementById('confirmation-modal').classList.remove('active');
+        }
+
+        // Export to PDF Function
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+
+            // Title
+            doc.setFontSize(16);
+            doc.text('Histórico de Manejos', 14, 15);
+
+            const boiName = document.getElementById('filter-boi').value;
+            const fazendaId = document.getElementById('filter-fazenda-id').value;
+            const pastoId = document.getElementById('filter-pasto-id').value;
+
+            // Construct fetch url for ALL data
+            let query = `?page=1&limit=10000`; // High limit to get all
+            if(boiName) query += `&boi_name=${encodeURIComponent(boiName)}`;
+            if(fazendaId) query += `&fazenda_id=${fazendaId}`;
+            if(pastoId) query += `&pasto_id=${pastoId}`;
+
+            fetch(`/api/manejo${query}`)
+                .then(res => res.json())
+                .then(response => {
+                    const data = response.data;
+                    const tableRows = data.map(item => [
+                        item.boi_name || item.boi_id,
+                        item.fazenda_name || item.fazenda_id,
+                        item.pasto_name || item.pasto_id,
+                        item.initial_weight_manejo || '-',
+                        item.last_weight_value || '-',
+                        item.total_weight_registered || 0,
+                        item.weights_count || 0,
+                        item.last_weight_date ? formatDate(item.last_weight_date) : '-'
+                    ]);
+
+                    doc.autoTable({
+                        head: [['BOTON', 'Fazenda', 'Pasto', 'Peso Inicial', 'Último Peso', 'Ganho Total', 'Qtd Pesos', 'Data']],
+                        body: tableRows,
+                        startY: 20
+                    });
+
+                    doc.save(`HistoricoManejo_${timestamp}.pdf`);
+                })
+                .catch(err => {
+                    console.error("Export Error", err);
+                    alert("Erro ao exportar PDF");
+                });
+        }
+
+        loadManejoHistoryTable();
+    </script>
+
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-container">
+            <h3 class="modal-title" id="modal-title">Título</h3>
+            <p class="modal-body" id="modal-body">Mensagem...</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="btn-cancel">Não</button>
+                <button id="modal-confirm-btn" class="btn-primary">Sim</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

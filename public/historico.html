@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Histórico de Pesos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- JSPDF for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            cursor: help;
+        }
+        .status-vendido { background-color: #27ae60; }
+        .status-morreu { background-color: #e74c3c; }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 80px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            padding: 5px 0;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -40px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html" class="active"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Histórico de Pesos</h2>
+            </div>
+            
+            <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                <!-- Updated to Autocomplete Input -->
+                <div class="form-group">
+                    <label>Seleciona o BOTON</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input list="bois-list" id="boi-input" placeholder="Digite ou selecione o BOTON..." autocomplete="off" style="flex: 1;">
+                        <button type="button" onclick="clearSelection()" style="padding: 0.5rem 4.0rem; background-color: #1900ff; color: white; border: none; border-radius: 4px; cursor: pointer;">Limpar</button>
+                    </div>
+                    <datalist id="bois-list"></datalist>
+                    <input type="hidden" id="boi-id">
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Evolução de Peso</h3>
+                </div>
+                <div style="height: 400px; width: 100%;">
+                    <canvas id="weightChart"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Detalhes dos Pesos</h3>
+                    <!-- PDF Export Button -->
+                    <button onclick="exportToPDF()" class="btn-primary" style="background-color: #1900ff;">Exportar PDF</button>
+                </div>
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Peso (kg)</th>
+                            <th>Ganho de Peso (kg)</th>
+                            <th>Fazenda</th>
+                            <th>Pasto</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <!-- Pagination Controls -->
+                <div id="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let allBois = [];
+        let fullHistory = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        async function init() {
+            try {
+                const res = await fetch('/api/manejo/bois-distinct');
+                allBois = await res.json();
+                
+                const datalist = document.getElementById('bois-list');
+                datalist.innerHTML = allBois.map(b => {
+                    const status = b.baixa_status ? ` (${b.baixa_status})` : '';
+                    return `<option value="${b.name}${status}" data-id="${b.id}">`;
+                }).join('');
+                
+                // Setup listener
+                const input = document.getElementById('boi-input');
+                input.addEventListener('input', onBoiInput);
+                input.addEventListener('change', onBoiInput);
+                
+            } catch (err) {
+                console.error("Error loading bois:", err);
+            }
+        }
+
+        function clearSelection() {
+            document.getElementById('boi-input').value = '';
+            document.getElementById('boi-id').value = '';
+            fullHistory = [];
+            currentPage = 1;
+            updateTable();
+            updateChart([]);
+        }
+
+        function onBoiInput() {
+            const val = document.getElementById('boi-input').value;
+            const hiddenId = document.getElementById('boi-id');
+            const previousId = hiddenId.value;
+            
+            // Find match in allBois
+            const match = allBois.find(b => {
+                const status = b.baixa_status ? ` (${b.baixa_status})` : '';
+                return (b.name + status) === val;
+            });
+
+            if (match) {
+                hiddenId.value = match.id;
+                if (previousId !== String(match.id)) {
+                    loadHistory(match.id);
+                }
+            } else {
+                hiddenId.value = '';
+                // Optional: clear table if no valid selection?
+                // document.querySelector('#history-table tbody').innerHTML = '';
+            }
+        }
+
+        async function loadHistory(boiId) {
+            if (!boiId) return;
+
+            try {
+                const res = await fetch(`/api/manejo/history-all/${boiId}`);
+                fullHistory = await res.json();
+                
+                currentPage = 1;
+                updateTable();
+                updateChart(fullHistory);
+            } catch (err) {
+                console.error("Error loading history:", err);
+            }
+        }
+
+        function updateTable() {
+            const tbody = document.querySelector('#history-table tbody');
+            
+            if (!fullHistory || fullHistory.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">Nenhum histórico encontrado.</td></tr>';
+                document.getElementById('pagination-controls').innerHTML = '';
+                return;
+            }
+
+            // Client-side Pagination Logic
+            const totalPages = Math.ceil(fullHistory.length / itemsPerPage);
+            
+            // Slice for current page
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = fullHistory.slice(startIndex, endIndex);
+
+            tbody.innerHTML = pageData.map((h, i) => {
+                // Determine actual index in full array for correct gain calculation if needed,
+                // BUT current logic calculates gain simply by comparing to PREVIOUS item in the array.
+                // If we paginate, 'index - 1' might be on previous page.
+                // So checking `fullHistory` is safer for gain calc.
+                const actualIndex = startIndex + i;
+                
+                let ganho = '-';
+                if (actualIndex > 0) {
+                    const pesoAnterior = fullHistory[actualIndex - 1].weight;
+                    const pesoAtual = h.weight;
+                    const diff = pesoAtual - pesoAnterior;
+                    ganho = diff.toFixed(2);
+                    // Add color based on gain/loss
+                    if (diff > 0) {
+                        ganho = `<span style="color: green;">+${ganho}</span>`;
+                    } else if (diff < 0) {
+                        ganho = `<span style="color: red;">${ganho}</span>`;
+                    }
+                }
+
+                let location = h.pasto || '-';
+                if (h.type === 'Compra') {
+                     location += ' (Origem)';
+                }
+
+                return `
+                    <tr>
+                        <td style="display:flex; align-items:center;">${formatDate(h.date)} <small style="margin-left: 8px; color: #666;">(${h.type || 'Pesagem'})</small></td>
+                        <td>${h.weight}</td>
+                        <td>${ganho}</td>
+                        <td>${h.fazenda || '-'}</td>
+                        <td>${location}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('pagination-controls');
+            let html = '';
+            
+            if (totalPages > 1) {
+                html += `<button class="pagination-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>`;
+                html += `<span>Página ${currentPage} de ${totalPages}</span>`;
+                html += `<button class="pagination-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            if (page < 1 || page > Math.ceil(fullHistory.length / itemsPerPage)) return;
+            currentPage = page;
+            updateTable();
+        }
+
+        function updateChart(history) {
+            const ctx = document.getElementById('weightChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const labels = history.map(h => formatDate(h.date));
+            const weightData = history.map(h => h.weight);
+            
+            // Calculate weight gain for each entry
+            const gainData = history.map((h, index) => {
+                if (index === 0) return 0; // First entry has no previous weight
+                return h.weight - history[index - 1].weight;
+            });
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Peso (kg)',
+                            data: weightData,
+                            backgroundColor: 'rgba(25, 118, 210, 0.5)',
+                            borderColor: 'rgba(25, 118, 210, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Ganho de Peso (kg)',
+                            data: gainData,
+                            backgroundColor: (context) => {
+                                const val = context.raw;
+                                return val > 0 ? 'rgba(106, 168, 79, 0.6)' : 'rgba(0,0,0,0)';
+                            },
+                            borderWidth: 1,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'Perda de Peso (kg)',
+                            data: gainData,
+                            backgroundColor: (context) => {
+                                const val = context.raw;
+                                return val <= 0 ? 'rgba(231, 76, 60, 0.6)' : 'rgba(0,0,0,0)';
+                            },
+                            borderWidth: 1,
+                            yAxisID: 'y2'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Peso (kg)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Ganho de Peso (kg)' }
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Perda de Peso (kg)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportToPDF() {
+            if (!fullHistory || fullHistory.length === 0) {
+                alert("Não há dados para exportar.");
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Filename: HistoricoPesos_ddmmaaaahhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+
+            doc.setFontSize(16);
+            doc.text('Histórico de Pesos', 14, 15);
+            
+            // Add Info about selected Boi
+            const boiInput = document.getElementById('boi-input').value;
+            doc.setFontSize(12);
+            doc.text(`BOTON: ${boiInput}`, 14, 25);
+
+            const tableRows = fullHistory.map((h, i) => {
+                let ganho = '-';
+                if (i > 0) {
+                    ganho = (h.weight - fullHistory[i - 1].weight).toFixed(2);
+                }
+                const location = h.pasto ? h.pasto : (h.type === 'Compra' ? 'Origem' : '-');
+                
+                return [
+                    formatDate(h.date),
+                    h.weight,
+                    ganho,
+                    h.fazenda || '-',
+                    location
+                ];
+            });
+
+            doc.autoTable({
+                head: [['Data', 'Peso (kg)', 'Ganho (kg)', 'Fazenda', 'Pasto']],
+                body: tableRows,
+                startY: 30
+            });
+
+            doc.save(`HistoricoPesos_${timestamp}.pdf`);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            // Fix timezone issue if dateStr is simple YYYY-MM-DD
+            if(dateStr.length === 10) {
+                 const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                 const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+                 return adjustedDate.toLocaleDateString('pt-BR');
+            }
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

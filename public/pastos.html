@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Pastos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html" class="active"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Gerenciar Pastos</h2>
+            </div>
+
+            <form id="pasto-form">
+                <input type="hidden" id="pasto-id">
+                <div class="form-section form-grid" style="background: #ffffffd5; padding: 1.5rem; border: 1px solid #02006d; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Nome do Pasto</label>
+                        <input type="text" id="pasto-name" required placeholder="Ex: Pasto 01">
+                    </div>
+                    <div class="form-group">
+                        <label>Fazenda</label>
+                        <select id="pasto-fazenda" required>
+                            <option value="">Carregando...</option>
+                        </select>
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end;">
+                         <button type="submit" class="btn-primary">Salvar</button>
+                         <button type="button" onclick="resetForm()" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Count Summary Section -->
+            <div id="summary-section" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 5px solid var(--primary-color);">
+                <h3 style="font-size: 1rem; color: var(--text-dark); margin-bottom: 0.5rem;">Quantidades de Pastos por Fazenda</h3>
+                <div id="pasto-counts" style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                    <!-- Counts will be injected here -->
+                </div>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="filter-section" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">Filtros de Pesquisa</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Filtrar por Fazenda</label>
+                        <input type="text" id="filter-fazenda" list="fazenda-list" placeholder="Digite o nome da fazenda">
+                        <datalist id="fazenda-list"></datalist>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <button onclick="applyFilters()" type="button" class="btn-primary">Pesquisar</button>
+                    <button onclick="clearFilters()" type="button" class="btn-cancel">Limpar</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="pastos-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Fazenda</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: #666; font-size: 0.9rem;">Registros por página:</span>
+                    <select id="page-size">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span id="page-info" style="color: #666; font-size: 0.9rem; margin-left: 1rem;"></span>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="first-page" class="pagination-btn">
+                        ««
+                    </button>
+                    <button id="prev-page" class="pagination-btn">
+                        ‹ Anterior
+                    </button>
+                    <button id="next-page" class="pagination-btn">
+                        Próxima ›
+                    </button>
+                    <button id="last-page" class="pagination-btn">
+                        »»
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('pasto-form');
+        const tableBody = document.querySelector('#pastos-table tbody');
+        const fazendaSelect = document.getElementById('pasto-fazenda');
+        
+        let allPastos = [];
+        let allFazendas = [];
+        let filteredPastos = [];
+        
+        // Pagination state
+        let currentPage = 1;
+        let pageSize = 10;
+
+        async function loadFazendasForSelect() {
+            try {
+                const res = await fetch('/api/fazendas');
+                allFazendas = await res.json();
+                
+                // Populate Select
+                fazendaSelect.innerHTML = '<option value="">Selecione...</option>' + 
+                    allFazendas.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+                
+                // Populate Datalist for Filter
+                const datalist = document.getElementById('fazenda-list');
+                datalist.innerHTML = allFazendas.map(f => `<option value="${f.name}">`).join('');
+            } catch (error) {
+                console.error("Erro ao carregar fazendas", error);
+            }
+        }
+
+        async function loadPastos() {
+            try {
+                const res = await fetch('/api/pastos', { cache: 'no-store' });
+                allPastos = await res.json(); // Server already sorts by ID DESC
+                
+                // Re-apply filter if exists
+                const filterVal = document.getElementById('filter-fazenda').value;
+                if(filterVal) {
+                    window.applyFilters();
+                } else {
+                    filteredPastos = allPastos;
+                    renderPage();
+                }
+                updateSummary();
+            } catch (error) {
+                console.error("Erro ao carregar pastos", error);
+            }
+        }
+
+        function renderPage() {
+            const totalRecords = filteredPastos.length;
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            // Ensure current page is valid
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = filteredPastos.slice(startIndex, endIndex);
+            
+            tableBody.innerHTML = pageData.map(p => `
+                <tr>
+                    <td>${p.id}</td>
+                    <td>${p.name}</td>
+                    <td>${p.fazenda_name || p.fazenda_id}</td>
+                    <td>
+                        <button onclick="editPasto(${p.id}, '${p.name}', ${p.fazenda_id})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button onclick="deletePasto(${p.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Update pagination info
+            const pageInfo = document.getElementById('page-info');
+            if (totalRecords === 0) {
+                pageInfo.textContent = 'Nenhum registro encontrado';
+            } else {
+                pageInfo.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} registros`;
+            }
+            
+            // Update button states
+            const firstBtn = document.getElementById('first-page');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+            const lastBtn = document.getElementById('last-page');
+            
+            firstBtn.disabled = currentPage === 1;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages || totalRecords === 0;
+            lastBtn.disabled = currentPage === totalPages || totalRecords === 0;
+        }
+
+        // Pagination event listeners
+        document.getElementById('page-size').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('first-page').addEventListener('click', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredPastos.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        document.getElementById('last-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredPastos.length / pageSize);
+            currentPage = totalPages;
+            renderPage();
+        });
+
+        function updateSummary() {
+            const counts = {};
+            allPastos.forEach(p => {
+                const fazenda = p.fazenda_name || 'Desconhecida';
+                counts[fazenda] = (counts[fazenda] || 0) + 1;
+            });
+
+            const summaryContainer = document.getElementById('pasto-counts');
+            if (Object.keys(counts).length === 0) {
+                summaryContainer.innerHTML = '<span style="color: #666;">Nenhum pasto cadastrado.</span>';
+                return;
+            }
+
+            summaryContainer.innerHTML = Object.entries(counts).map(([fazenda, count]) => `
+                <div style="background: #f0f2f5; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; font-weight: 500;">
+                    ${fazenda}: <span style="color: var(--primary-color); font-weight: bold;">${count}</span>
+                </div>
+            `).join('');
+        }
+
+        window.applyFilters = () => {
+            const filterValue = document.getElementById('filter-fazenda').value.toLowerCase();
+            if (!filterValue) {
+                filteredPastos = allPastos;
+            } else {
+                filteredPastos = allPastos.filter(p => 
+                    (p.fazenda_name && p.fazenda_name.toLowerCase().includes(filterValue))
+                );
+            }
+            currentPage = 1;
+            renderPage();
+        };
+
+        window.clearFilters = () => {
+            document.getElementById('filter-fazenda').value = '';
+            filteredPastos = allPastos;
+            currentPage = 1;
+            renderPage();
+        };
+
+        // Notification Function
+        function showMessage(msg, type) {
+            // Remove any existing message
+            const existingMsg = document.querySelector('.success-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            // Create new message
+            const msgDiv = document.createElement('div');
+            // Mapping types to CSS classes
+            // type 'success' -> green (toast-success)
+            // type 'warning' -> yellow (toast-warning)
+            // type 'error'   -> red (toast-error)
+            
+            let className = 'success-message';
+            if (type === 'success') className += ' toast-success';
+            else if (type === 'warning') className += ' toast-warning';
+            else if (type === 'error') className += ' toast-error';
+            
+            msgDiv.className = className;
+            msgDiv.innerHTML = msg;
+            
+            document.body.appendChild(msgDiv);
+            
+            // Remove after 5 seconds with animation
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const overlay = document.getElementById('confirmation-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            titleEl.textContent = title;
+            bodyEl.textContent = message;
+
+            // Show modal
+            overlay.classList.add('active');
+
+            // Handle Confirm
+            const handleConfirm = () => {
+                onConfirm();
+                closeModal();
+                cleanup();
+            };
+
+            // Handle Cancel
+            const handleCancel = () => {
+                closeModal();
+                cleanup();
+            };
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            // Remove existing listeners to prevent multiple firings if not cleaned up properly
+            // A better approach is using `once: true` but we need to remove cancel too if confirm is clicked
+            // We'll trust the cleanup logic here for this simple implementations
+            confirmBtn.onclick = handleConfirm;
+            cancelBtn.onclick = handleCancel;
+        }
+
+        function closeModal() {
+            document.getElementById('confirmation-modal').classList.remove('active');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('pasto-id').value;
+            const name = document.getElementById('pasto-name').value;
+            const fazenda_id = document.getElementById('pasto-fazenda').value;
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/pastos/${id}` : '/api/pastos';
+            
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, fazenda_id })
+                });
+
+                if (res.ok) {
+                    resetForm();
+                    await loadPastos();
+                    
+                    if (id) {
+                        // Edit: Yellow, "Registro alterado com sucesso!"
+                        showMessage('<span class="toast-title">Atenção</span>Registro alterado com sucesso!', 'warning');
+                    } else {
+                        // Save: Green, "Registro salvo com sucesso!"
+                        showMessage('<span class="toast-title">Sucesso</span>Registro salvo com sucesso!', 'success');
+                    }
+                } else {
+                    const err = await res.json();
+                    showMessage(`<span class="toast-title">Erro</span>${err.error || 'Erro ao salvar'}`, 'error');
+                }
+            } catch (err) {
+                showMessage(`<span class="toast-title">Erro</span>${err.message}`, 'error');
+            }
+        });
+
+        window.editPasto = (id, name, fazendaId) => {
+            document.getElementById('pasto-id').value = id;
+            document.getElementById('pasto-name').value = name;
+            document.getElementById('pasto-fazenda').value = fazendaId;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.deletePasto = async (id) => {
+            showConfirmModal(
+                'Confirmação',
+                'Deseja excluir o registro?',
+                async () => {
+                    try {
+                        const res = await fetch(`/api/pastos/${id}`, { method: 'DELETE' });
+                        
+                        if(res.ok) {
+                            const data = await res.json();
+                            // Explicitly check if changes occurred, though server returns 404 if 0 changes.
+                            if (data.changes > 0 || res.status === 200) {
+                                 await loadPastos();
+                                 // Delete: Red, "Registro excluído com sucesso!"
+                                 showMessage('<span class="toast-title">Sucesso</span>Registro excluído com sucesso!', 'error'); 
+                            } else {
+                                 showMessage('<span class="toast-title">Erro</span>Registro não encontrado para exclusão.', 'error');
+                            }
+                        } else {
+                            const err = await res.json();
+                            showMessage(`<span class="toast-title">Erro</span>${err.error || 'Erro ao excluir pasto'}`, 'error');
+                        }
+                    } catch(err) {
+                        console.error("Delete error:", err);
+                        showMessage(`<span class="toast-title">Erro</span>Erro de conexão: ${err.message}`, 'error');
+                    }
+                }
+            );
+        };
+
+        window.resetForm = () => {
+            document.getElementById('pasto-id').value = '';
+            form.reset();
+        };
+
+        loadFazendasForSelect();
+        loadPastos();
+    </script>
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-container">
+            <h3 class="modal-title" id="modal-title">Título</h3>
+            <p class="modal-body" id="modal-body">Mensagem...</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="btn-cancel">Não</button>
+                <button id="modal-confirm-btn" class="btn-primary">Sim</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

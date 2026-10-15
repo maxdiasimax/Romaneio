@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Perspectiva de Peso</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .form-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .chart-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .table-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .info-box {
+            background: #e3f2fd;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #0d47a1;
+        }
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            font-weight: 500;
+        }
+        .toast-success { background: #27ae60; }
+        .toast-warning { background: #f1c40f; color: #333; }
+        .toast-error { background: #c0392b; }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+    }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html" class="active"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Perspectiva de Peso</h2>
+            </div>
+            
+            <div class="info-box">
+                <strong>Como funciona:</strong> Selecione o animal e informe o período desejado. O sistema carregará o Peso Atual e a Média de Consumo da Dieta. Você pode ajustar a <strong>Estimativa de Ganho de Peso (GMD)</strong> caso a conversão alimentar seja diferente do consumo bruto.
+            </div>
+
+            <div class="form-section">
+                <h3>Parâmetros da Simulação</h3>
+                <div class="form-grid">
+                    <!-- Hidden ID for Editing -->
+                    <input type="hidden" id="simulation-id">
+                    
+                    <div class="form-group">
+                        <label>Fazenda</label>
+                        <select id="fazenda-select" class="form-control">
+                            <option value="">Selecione</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Pasto</label>
+                        <select id="pasto-select" class="form-control" disabled>
+                            <option value="">Selecione a Fazenda</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Boi</label>
+                        <select id="boi-select" class="form-control" disabled>
+                            <option value="">Selecione o Pasto</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Peso Atual (kg)</label>
+                        <input type="number" id="current-weight" class="form-control" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Ref. Consumo Dieta (Kg/Dia)</label>
+                        <input type="text" id="diet-consumption-display" class="form-control" readonly style="background: #eee; cursor: help;" title="Dado informativo vindo do Dashboard de Dieta">
+                    </div>
+
+                    <div class="form-group">
+                        <label>GMD Estimado (Kg/Dia)</label>
+                        <input type="number" step="0.001" id="gmd-input" class="form-control" placeholder="0.000">
+                        <small style="color: #666;">Ganho Médio Diário esperado</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Data Início Projeção</label>
+                        <input type="date" id="start-date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Período (Dias)</label>
+                        <input type="number" id="period-days" class="form-control" value="30">
+                    </div>
+                    
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                    <div class="form-group" style="grid-column: 1 / -1; display: flex; gap: 10px;">
+                        <button onclick="calculateProjection()" class="btn-primary">Calcular Evolução</button>
+                        <button onclick="cancelarEdicao()" id="btn-cancel" class="btn-cancel">Cancelar Edição</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results-area" style="display: none;">
+                <div class="form-section" style="background: #f8f9fa; border-left: 5px solid var(--primary-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3>Resultado da projeção</h3>
+                            <div style="font-size: 1.2rem;">Peso Final Estimado: <span id="final-weight-display" style="font-weight: bold; color: var(--primary-color);">0.00 kg</span></div>
+                            <div style="font-size: 0.9rem; color: #666;">Ganho Total: <span id="total-gain-display">0.00 kg</span></div>
+                        </div>
+                        <button onclick="saveSimulation()" class="btn-secondary">Salvar Simulação</button>
+                    </div>
+                </div>
+
+                <div class="results-container">
+                    <div class="chart-container">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                    <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h4>Evolução Diária</h4>
+                            <button onclick="exportData()" style="padding: 0.25rem 0.5rem; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer;">Exportar (PDF)</button>
+                        </div>
+                        <table id="evolution-table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #eee;">
+                                    <th style="padding: 0.5rem; text-align: left;">Dia</th>
+                                    <th style="padding: 0.5rem; text-align: left;">Data</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Peso (kg)</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <h3>Simulações Salvas</h3>
+                <table id="saved-simulations-table">
+                    <thead>
+                        <tr>
+                            <th>Data Sim.</th>
+                            <th>Fazenda</th>
+                            <th>Pasto</th>
+                            <th>Boi</th>
+                            <th>Dias</th>
+                            <th>GMD</th>
+                            <th>Inicial</th>
+                            <th>Final</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- State ---
+        let currentChart = null;
+        let simulationData = null; 
+
+        // --- Elements ---
+        const fazendaSelect = document.getElementById('fazenda-select');
+        const pastoSelect = document.getElementById('pasto-select');
+        const boiSelect = document.getElementById('boi-select');
+        const currentWeightInput = document.getElementById('current-weight');
+        const dietConsumptionDisplay = document.getElementById('diet-consumption-display');
+        const gmdInput = document.getElementById('gmd-input'); // User adjustable gain
+        const startDateInput = document.getElementById('start-date');
+        const periodDaysInput = document.getElementById('period-days');
+        const resultsArea = document.getElementById('results-area');
+        const finalWeightDisplay = document.getElementById('final-weight-display');
+        const totalGainDisplay = document.getElementById('total-gain-display');
+        const evolutionTableBody = document.querySelector('#evolution-table tbody');
+        const savedTableBody = document.querySelector('#saved-simulations-table tbody');
+        const simulationIdInput = document.getElementById('simulation-id');
+        const btnCancel = document.getElementById('btn-cancel');
+
+        startDateInput.valueAsDate = new Date();
+
+        // --- Loaders ---
+        async function loadFazendas() {
+            try {
+                const res = await fetch('/api/fazendas');
+                const list = await res.json();
+                fazendaSelect.innerHTML = '<option value="">Selecione</option>' + 
+                    list.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            } catch(e) { console.error(e); }
+        }
+
+        fazendaSelect.addEventListener('change', async () => {
+            const fid = fazendaSelect.value;
+            pastoSelect.innerHTML = '<option>Carregando...</option>';
+            pastoSelect.disabled = true;
+            boiSelect.innerHTML = '<option>Selecione o Pasto</option>';
+            boiSelect.disabled = true;
+            
+            if(fid) {
+                const res = await fetch(`/api/pastos/fazenda/${fid}`);
+                const list = await res.json();
+                pastoSelect.innerHTML = '<option value="">Selecione</option>' + 
+                    list.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                pastoSelect.disabled = false;
+            } else {
+                pastoSelect.innerHTML = '<option>Selecione a Fazenda</option>';
+            }
+        });
+
+        pastoSelect.addEventListener('change', async () => {
+            const pid = pastoSelect.value;
+            const fid = fazendaSelect.value;
+            
+            boiSelect.innerHTML = '<option>Carregando...</option>';
+            boiSelect.disabled = true;
+            dietConsumptionDisplay.value = 'Calculando...';
+            
+            if(pid) {
+                // Fetch Bois
+                const res = await fetch(`/api/bois/pasto/${pid}`);
+                const list = await res.json();
+                if(!list.length) boiSelect.innerHTML = '<option value="">Nenhum boi</option>';
+                else {
+                    boiSelect.innerHTML = '<option value="">Selecione</option>' + 
+                        list.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                    boiSelect.disabled = false;
+                }
+
+                // Fetch Diet Consumption (Reference)
+                fetchConsumptionRate(fid, pid);
+            } else {
+                boiSelect.innerHTML = '<option>Selecione o Pasto</option>';
+                dietConsumptionDisplay.value = '';
+            }
+        });
+
+        async function fetchConsumptionRate(fid, pid) {
+            try {
+                const params = new URLSearchParams({
+                    fazenda_id: fid,
+                    pasto_id: pid,
+                    period: 'mensal' 
+                });
+                const res = await fetch(`/api/dashboard/dieta-consumption?${params}`);
+                if(!res.ok) throw new Error('Failed');
+                const data = await res.json();
+                
+                // Show consumption as info. 
+                // Suggest GMD? Let's just default GMD to maybe 0.5 or leave empty. 
+                // User requirement: "usar Média Kg/Boi... calcular com quantos kilos estará"
+                // If the user treats consumption as gain (common in simple prototypes), we can pre-fill GMD.
+                // Let's pre-fill GMD with the consumption value BUT let them change it.
+                
+                const val = data.period_consumption ? parseFloat(data.period_consumption) : 0;
+                dietConsumptionDisplay.value = val.toFixed(3);
+                
+                // Auto-fill GMD with same value as a starting point (Assumption based on User req)
+                if(!gmdInput.value) gmdInput.value = val.toFixed(3);
+
+            } catch(e) {
+                console.error(e);
+                dietConsumptionDisplay.value = 'Erro';
+            }
+        }
+
+        boiSelect.addEventListener('change', async () => {
+            const bid = boiSelect.value;
+            if(bid) {
+                const res = await fetch(`/api/bois/${bid}/weight`);
+                const data = await res.json();
+                currentWeightInput.value = data.weight || '';
+            }
+        });
+
+        // --- Core Calculation ---
+        window.calculateProjection = () => {
+            // Validate inputs
+            const w0 = parseFloat(currentWeightInput.value);
+            const gmd = parseFloat(gmdInput.value);
+            const days = parseInt(periodDaysInput.value);
+            const startStr = startDateInput.value;
+
+            if(isNaN(w0) || isNaN(gmd) || isNaN(days) || !startStr) {
+                alert("Preencha todos os campos numéricos (Peso, GMD, Dias) e a Data.");
+                return;
+            }
+
+            // Generate Series
+            const labels = [];
+            const data = [];
+            const rows = [];
+            
+            let current = w0;
+            const startDate = new Date(startStr);
+
+            for(let i=0; i<=days; i++) {
+                const d = new Date(startDate);
+                d.setDate(d.getDate() + i); // Add days correctly
+                
+                // Apply gain (except day 0)
+                if(i > 0) current += gmd;
+
+                const dateStr = d.toLocaleDateString('pt-BR');
+                labels.push(dateStr);
+                data.push(current);
+                
+                rows.push({
+                    day: i,
+                    date: dateStr,
+                    weight: current.toFixed(2)
+                });
+            }
+
+            // Render Results
+            resultsArea.style.display = 'block';
+            finalWeightDisplay.textContent = current.toFixed(2) + " kg";
+            totalGainDisplay.textContent = (current - w0).toFixed(2) + " kg";
+
+            // Table
+            evolutionTableBody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${r.day}</td>
+                    <td>${r.date}</td>
+                    <td style="text-align:right">${r.weight}</td>
+                </tr>
+            `).join('');
+
+            // Chart
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            if(currentChart) currentChart.destroy();
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Evolução Projetada',
+                        data: data,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` Peso: ${parseFloat(ctx.raw).toFixed(2)} kg`
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Store for Save/Export
+            simulationData = {
+                boiId: boiSelect.value,
+                fazendaId: fazendaSelect.value,
+                pastoId: pastoSelect.value,
+                startDate: startStr,
+                days: days,
+                gmd: gmd,
+                initialWeight: w0,
+                finalWeight: current,
+                rows: rows
+            };
+        };
+
+        // --- Save ---
+        window.saveSimulation = async () => {
+            if(!simulationData) return;
+            try {
+                const body = {
+                    boi_id: simulationData.boiId,
+                    fazenda_id: simulationData.fazendaId,
+                    pasto_id: simulationData.pastoId,
+                    start_date: simulationData.startDate,
+                    days: simulationData.days,
+                    daily_rate: simulationData.gmd,
+                    initial_weight: simulationData.initialWeight,
+                    final_weight: simulationData.finalWeight
+                };
+                
+                const id = simulationIdInput.value;
+                const method = id ? 'PUT' : 'POST';
+                const url = id ? `/api/perspectives/${id}` : '/api/perspectives';
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                
+                if(res.ok) {
+                    if (id) {
+                        showToast("Registro alterado com sucesso!", "warning");
+                    } else {
+                        showToast("Registro salvo com sucesso!", "success");
+                    }
+                    loadHistory();
+                    cancelarEdicao(); // Reset form
+                } else {
+                    alert("Erro ao salvar");
+                }
+            } catch(e) {
+                console.error(e);
+                alert("Erro ao salvar");
+            }
+        };
+
+        // --- History ---
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/perspectives');
+                const list = await res.json();
+                savedTableBody.innerHTML = list.map(i => `
+                    <tr>
+                        <td>${new Date(i.created_at).toLocaleDateString('pt-BR')}</td>
+                        <td>${i.fazenda_name || '-'}</td>
+                        <td>${i.pasto_name || '-'}</td>
+                        <td>${i.boi_name || '-'}</td>
+                        <td>${i.days}</td>
+                        <td>${parseFloat(i.daily_rate).toFixed(3)}</td>
+                        <td>${parseFloat(i.initial_weight).toFixed(2)}</td>
+                        <td>${parseFloat(i.final_weight).toFixed(2)}</td>
+                        <td>
+                            <button onclick="editarSimulacao(${i.id}, '${i.fazenda_id}', '${i.pasto_id}', '${i.boi_id}', '${i.start_date}', '${i.days}', '${i.daily_rate}', '${i.initial_weight}')" style="color: blue; border: none; background: none; cursor: pointer; margin-right: 10px;">Editar</button>
+                            <button onclick="del(${i.id})" style="color: red; border: none; background: none; cursor: pointer;">Excluir</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch(e) { console.error(e); }
+        }
+
+        window.del = async (id) => {
+            if(confirm('Deseja excluir o registro?')) { // Updated confirmation message
+                await fetch(`/api/perspectives/${id}`, { method: 'DELETE' });
+                showToast("Registro excluído com sucesso!", "error");
+                loadHistory();
+            }
+        };
+
+        window.editarSimulacao = async (id, fazendaId, pastoId, boiId, startDate, days, dailyRate, initialWeight) => {
+            // Set basic values
+            simulationIdInput.value = id;
+            gmdInput.value = dailyRate;
+            periodDaysInput.value = days;
+            startDateInput.value = startDate;
+            currentWeightInput.value = initialWeight;
+
+            // Trigger selects cascading
+            fazendaSelect.value = fazendaId;
+            // Manually trigger change to load Pastos, then set Pasto
+            await fazendaSelect.dispatchEvent(new Event('change'));
+            
+            // Wait for pastos to load (dirty hack: small timeout, or better, wait specifically)
+            // Ideally refactor loadPastos to be callable and return promise. 
+            // Better: Re-implement cascading here carefully or trust the event listener is async but we need to wait.
+            // Since the event listener is async, 'dispatchEvent' returns immediately. Use explicit calls.
+            
+            // Let's refactor the event listener logic slightly to be reusable or just do it manually here:
+            // MANUAL FLOW for reliability:
+            pastoSelect.disabled = true;
+            const resP = await fetch(`/api/pastos/fazenda/${fazendaId}`);
+            const listP = await resP.json();
+            pastoSelect.innerHTML = '<option value="">Selecione</option>' + 
+                listP.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            pastoSelect.disabled = false;
+            pastoSelect.value = pastoId;
+
+            // Load Bois
+            boiSelect.disabled = true;
+            const resB = await fetch(`/api/bois/pasto/${pastoId}`);
+            const listB = await resB.json();
+             if(!listB.length) boiSelect.innerHTML = '<option value="">Nenhum boi</option>';
+            else {
+                boiSelect.innerHTML = '<option value="">Selecione</option>' + 
+                    listB.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                boiSelect.disabled = false;
+            }
+            boiSelect.value = boiId;
+
+            // UI Feedback
+            btnCancel.style.display = 'inline-block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // Recalculate to show the graph
+            calculateProjection();
+        };
+
+        window.cancelarEdicao = () => {
+            simulationIdInput.value = '';
+            fazendaSelect.value = '';
+            pastoSelect.innerHTML = '<option value="">Selecione a Fazenda</option>';
+            pastoSelect.disabled = true;
+            boiSelect.innerHTML = '<option value="">Selecione o Pasto</option>';
+            boiSelect.disabled = true;
+            currentWeightInput.value = '';
+            gmdInput.value = '';
+            periodDaysInput.value = '30';
+            startDateInput.valueAsDate = new Date();
+            dietConsumptionDisplay.value = '';
+            resultsArea.style.display = 'none';
+            btnCancel.style.display = 'none';
+            currentChart = null; // Clear chart ref
+        };
+
+        // --- Export ---
+        window.exportData = () => {
+            if(!simulationData) return;
+            const doc = new window.jspdf.jsPDF();
+            
+            doc.setFontSize(18);
+            doc.text("Relatório de Perspectiva de Peso", 14, 20);
+            
+            doc.setFontSize(12);
+            const boiTxt = boiSelect.options[boiSelect.selectedIndex].text;
+            doc.text(`Boi: ${boiTxt}`, 14, 30);
+            doc.text(`Período: ${simulationData.days} dias a partir de ${new Date(simulationData.startDate).toLocaleDateString('pt-BR')}`, 14, 38);
+            doc.text(`GMD Estimado: ${simulationData.gmd} kg/dia`, 14, 46);
+            doc.text(`Ganho Total: ${(simulationData.finalWeight - simulationData.initialWeight).toFixed(2)} kg`, 14, 54);
+
+            // Table
+            doc.autoTable({
+                startY: 65,
+                head: [['Dia', 'Data', 'Peso (kg)']],
+                body: simulationData.rows.map(r => [r.day, r.date, r.weight])
+            });
+
+            doc.save(`perspectiva_${boiTxt}.pdf`);
+        };
+
+        function showToast(message, type = 'success') {
+            const existingMsg = document.querySelector('.toast-message');
+            if (existingMsg) existingMsg.remove();
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `toast-message toast-${type}`;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => msgDiv.remove(), 300);
+            }, 5000);
+        }
+
+        // Init
+        loadFazendas();
+        loadHistory();
+
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

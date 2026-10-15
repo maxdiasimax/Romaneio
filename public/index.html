@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Romaneio - Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <!-- LOGIN SECTION -->
+        <div id="login-card" class="auth-card">
+            <h2>Entrar no Romaneio</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Usuário</label>
+                    <input type="text" id="login-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Senha</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit" class="btn-primary">Entrar</button>
+            </form>
+            <div class="auth-switch">
+                 <!-- Não tem conta? <a onclick="toggleAuth()">Cadastre-se</a>-->
+            </div>
+        </div>
+
+        <!-- SIGNUP SECTION -->
+        <div id="signup-card" class="auth-card hidden">
+            <h2>Criar Conta</h2>
+            <form id="signup-form">
+                <div class="form-group">
+                    <label for="signup-name">Nome Completo</label>
+                    <input type="text" id="signup-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-username">Usuário</label>
+                    <input type="text" id="signup-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Senha</label>
+                    <input type="password" id="signup-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-profile">Perfil</label>
+                    <select id="signup-profile">
+                        <option value="Usuário">Usuário</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Cadastrar</button>
+            </form>
+            <div class="auth-switch">
+                Já tem conta? <a onclick="toggleAuth()">Faça Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleAuth() {
+            document.getElementById('login-card').classList.toggle('hidden');
+            document.getElementById('signup-card').classList.toggle('hidden');
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    window.location.href = 'dashboard.html';
+                } else {
+                    alert(data.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao conectar ao servidor.');
+            }
+        });
+
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('signup-name').value;
+            const username = document.getElementById('signup-username').value;
+            const password = document.getElementById('signup-password').value;
+            const profile = document.getElementById('signup-profile').value;
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username, password, profile })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Cadastro realizado com sucesso! Faça login.');
+                    toggleAuth();
+                } else {
+                    alert(data.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao conectar ao servidor.');
+            }
+        });
+    </script>
+    <a href="https://wa.me/5534996933131" target="_blank" class="whatsapp-float">
+        <img src="imagens/icone_whatsapp.png" alt="WhatsApp">
+    </a>
+
+    <footer class="footer-bottom">
+        2026 - Todos os direitos reservados - <a href="http://www.imaxsi.com" target="_blank">Desenvolvido por Imax Soluções Integradas</a>
+    </footer>
+</body>
+</html>

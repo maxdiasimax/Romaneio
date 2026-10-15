@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Dieta</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            font-weight: 500;
+        }
+        .toast-success {
+            background: #27ae60;
+        }
+        .toast-warning {
+            background: #f1c40f;
+            color: #333;
+        }
+        .toast-error {
+            background: #c0392b;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html" class="active"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Controle de Dieta</h2>
+            </div>
+
+            <div class="dashboard-container" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem;">Dashboard de Consumo</h3>
+                
+                <div class="filters-row" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <div class="filter-group">
+                        <label>Fazenda</label>
+                        <select id="dash-fazenda" class="form-control" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">Selecione</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Pasto</label>
+                        <select id="dash-pasto" class="form-control" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" disabled>
+                            <option value="">Selecione Fazenda</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Período</label>
+                        <select id="dash-period" class="form-control" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="mensal">Mensal</option>
+                            <option value="quinzenal">Quinzenal</option>
+                            <option value="semana">Semanal</option>
+                            <option value="dia">Diário</option>
+                            <option value="custom">Livres(Customizado)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="dash-custom-dates" style="display: none; gap: 0.5rem; align-items: center;">
+                        <div class="filter-group">
+                            <label>Inicio</label>
+                            <input type="date" id="dash-start" class="form-control" style="padding: 0.4rem; border: 1px solid #ddd;">
+                        </div>
+                        <div class="filter-group">
+                            <label>Fim</label>
+                            <input type="date" id="dash-end" class="form-control" style="padding: 0.4rem; border: 1px solid #ddd;">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group" style="display: flex; align-items: flex-end;">
+                        <button type="button" onclick="updateDashboard()" class="btn-primary" style="padding: 0.5rem 1rem;">Atualizar</button>
+                    </div>
+                </div>
+
+                <div class="cards-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <!-- Card 1 -->
+                    <div class="kpi-card" style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                        <div class="kpi-title" style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;">Média Kg/Boi (No Período)</div>
+                        <div class="kpi-value" id="kpi-period-avg" style="font-size: 1.8rem; font-weight: bold; color: #333;">-</div>
+                        <div class="kpi-subtitle" id="kpi-period-total" style="font-size: 0.8rem; color: #888;">Total Consumido: -</div>
+                    </div>
+                </div>
+            </div>
+
+            <form id="dieta-form">
+                <input type="hidden" id="dieta-id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>Fazenda</label>
+                        <select id="fazenda-select" required>
+                            <option value="">Selecione a Fazenda</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Pasto</label>
+                        <select id="pasto-select" required disabled>
+                            <option value="">Selecione a Fazenda primeiro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Qtd. Bois do Pasto</label>
+                        <input type="text" id="qtd-bois" readonly style="background-color: #f0f0f0; cursor: not-allowed;" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" id="data-dieta" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Dieta</label>
+                        <select id="dieta-tipo" required>
+                            <option value="">Selecione a Dieta</option>
+                            <option value="Proteinado 01">Proteinado 01</option>
+                            <option value="Proteinado 03">Proteinado 03</option>
+                            <option value="Proteinado 05">Proteinado 05</option>
+                            <option value="Dieta 1%">Dieta 1%</option>
+                            <option value="Dieta Total">Dieta Total</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Qtd. Kg</label>
+                        <input type="number" step="0.01" id="qtd-kg" required placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-actions" style="align-self: flex-end;">
+                         <button type="submit" class="btn-primary" style="padding: 0.5rem 1rem; min-width: 100px; font-size: 0.9rem;">Salvar</button>
+                         <button type="button" onclick="resetForm()" class="btn-cancel" style="padding: 0.5rem 1rem; min-width: 100px; font-size: 0.9rem;">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-container">
+                <h3>Dieta Aplicada</h3>
+                <table id="dietas-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fazenda</th>
+                            <th>Pasto</th>
+                            <th>Qtd. Bois</th>
+                            <th>Data</th>
+                            <th>Dieta</th>
+                            <th>Qtd. Kg</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('dieta-form');
+        const tableBody = document.querySelector('#dietas-table tbody');
+        const fazendaSelect = document.getElementById('fazenda-select');
+        const pastoSelect = document.getElementById('pasto-select');
+        const qtdBoisInput = document.getElementById('qtd-bois');
+
+        let allDietas = [];
+
+        // Fetch Fazendas on load
+        async function loadFazendas() {
+            try {
+                const res = await fetch('/api/fazendas');
+                const fazendas = await res.json();
+                fazendaSelect.innerHTML = '<option value="">Selecione a Fazenda</option>' + 
+                    fazendas.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            } catch (err) {
+                console.error("Erro ao carregar fazendas:", err);
+            }
+        }
+
+        // Fetch Pastos when Fazenda changes
+        fazendaSelect.addEventListener('change', async () => {
+            const fazendaId = fazendaSelect.value;
+            pastoSelect.innerHTML = '<option value="">Carregando...</option>';
+            pastoSelect.disabled = true;
+            qtdBoisInput.value = '';
+
+            if (fazendaId) {
+                try {
+                    const res = await fetch(`/api/pastos/fazenda/${fazendaId}`);
+                    const pastos = await res.json();
+                    pastoSelect.innerHTML = '<option value="">Selecione o Pasto</option>' + 
+                        pastos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                    pastoSelect.disabled = false;
+                } catch (err) {
+                    console.error("Erro ao carregar pastos:", err);
+                    pastoSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                }
+            } else {
+                pastoSelect.innerHTML = '<option value="">Selecione a Fazenda primeiro</option>';
+            }
+        });
+
+        // Fetch Cattle Count when Pasto changes
+        pastoSelect.addEventListener('change', async () => {
+            const pastoId = pastoSelect.value;
+            if (pastoId) {
+                qtdBoisInput.value = 'Calculando...';
+                try {
+                    const res = await fetch(`/api/pastos/${pastoId}/count`);
+                    if (!res.ok) throw new Error('Erro na API');
+                    
+                    const data = await res.json();
+                    // Ensure we display 0 if the count is 0
+                    const count = (data.count !== undefined && data.count !== null) ? data.count : 0;
+                    qtdBoisInput.value = count;
+                } catch (err) {
+                    console.error("Erro ao contar bois:", err);
+                    qtdBoisInput.value = 'Erro';
+                }
+            } else {
+                qtdBoisInput.value = '';
+            }
+        });
+
+        async function loadDietas() {
+            try {
+                const res = await fetch('/api/dietas');
+                allDietas = await res.json();
+                renderTable();
+            } catch (error) {
+                console.error('Erro em loadDietas:', error);
+            }
+        }
+
+        function renderTable() {
+            tableBody.innerHTML = allDietas.map(d => `
+                <tr>
+                    <td>${d.id}</td>
+                    <td>${d.fazenda_name || '-'}</td>
+                    <td>${d.pasto_name || '-'}</td>
+                    <td>${d.qtd_bois || '0'}</td>
+                    <td>${d.data}</td>
+                    <td>${d.dieta_tipo}</td>
+                    <td>${d.qtd_kg ? parseFloat(d.qtd_kg).toFixed(2) : '-'}</td>
+                    <td>
+                        <button onclick="editDieta(${d.id})" style="color:blue; background:none; border:none; cursor:pointer; margin-right: 5px;">Editar</button>
+                        <button onclick="deleteDieta(${d.id})" style="color:red; background:none; border:none; cursor:pointer;">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('dieta-id').value;
+            const fazenda_id = fazendaSelect.value;
+            const pasto_id = pastoSelect.value;
+            const qtd_bois = qtdBoisInput.value;
+            const data = document.getElementById('data-dieta').value;
+            const dieta_tipo = document.getElementById('dieta-tipo').value;
+            const qtd_kg = document.getElementById('qtd-kg').value;
+
+            // Simple validation
+            if (!fazenda_id || !pasto_id || !data || !dieta_tipo || !qtd_kg) {
+                alert("Por favor preencha todos os campos obrigatórios");
+                return;
+            }
+
+            try {
+                const method = id ? 'PUT' : 'POST';
+                const url = id ? `/api/dietas/${id}` : '/api/dietas';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        fazenda_id, pasto_id, qtd_bois, data, dieta_tipo, qtd_kg
+                    })
+                });
+
+                if (!response.ok) throw new Error('Erro ao salvar');
+
+                // Show appropriate toast message
+                if (id) {
+                    showToast('Registro alterado com sucesso!', 'warning');
+                } else {
+                    showToast('Registro salvo com sucesso!', 'success');
+                }
+                
+                resetForm();
+                await loadDietas();
+            } catch (error) {
+                alert('Erro ao salvar registro: ' + error.message);
+            }
+        });
+
+        window.editDieta = async (id) => {
+            const dieta = allDietas.find(d => d.id === id);
+            if (!dieta) return;
+
+            document.getElementById('dieta-id').value = dieta.id;
+            fazendaSelect.value = dieta.fazenda_id;
+            
+            // Trigger loading of pastos manually since programmatic change doesn't fire event
+            pastoSelect.innerHTML = '<option value="">Carregando...</option>';
+            pastoSelect.disabled = true;
+
+            try {
+                const res = await fetch(`/api/pastos/fazenda/${dieta.fazenda_id}`);
+                const pastos = await res.json();
+                pastoSelect.innerHTML = '<option value="">Selecione o Pasto</option>' + 
+                    pastos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                pastoSelect.disabled = false;
+                
+                // Now set the pasto
+                pastoSelect.value = dieta.pasto_id;
+                
+                // Set other fields
+                qtdBoisInput.value = dieta.qtd_bois;
+                document.getElementById('data-dieta').value = dieta.data;
+                document.getElementById('dieta-tipo').value = dieta.dieta_tipo;
+                document.getElementById('qtd-kg').value = dieta.qtd_kg;
+                
+                // Scroll to form
+                form.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (err) {
+                console.error("Erro ao carregar pastos para edição:", err);
+                alert("Erro ao preparar formulário para edição.");
+            }
+        };
+
+        window.deleteDieta = async (id) => {
+            if(confirm('Deseja excluir o registro?')) {
+                try {
+                    await fetch(`/api/dietas/${id}`, { method: 'DELETE' });
+                    showToast('Registro excluído com sucesso!', 'error');
+                    await loadDietas();
+                } catch (error) {
+                    alert('Erro ao excluir registro: ' + error.message);
+                }
+            }
+        };
+
+        window.resetForm = () => {
+            document.getElementById('dieta-id').value = '';
+            form.reset();
+            pastoSelect.innerHTML = '<option value="">Selecione a Fazenda primeiro</option>';
+            pastoSelect.disabled = true;
+        };
+
+        function logout() {
+            window.location.href = 'index.html';
+        }
+
+        // Initialize
+        loadFazendas();
+        loadDietas();
+
+        // --- Dashboard Logic ---
+
+        const dashFazenda = document.getElementById('dash-fazenda');
+        const dashPasto = document.getElementById('dash-pasto');
+        const dashPeriod = document.getElementById('dash-period');
+        const dashCustomDates = document.getElementById('dash-custom-dates');
+        const dashStart = document.getElementById('dash-start');
+        const dashEnd = document.getElementById('dash-end');
+
+        // Populate Dashboard Fazendas (reuse existing endpoint)
+        async function loadDashFazendas() {
+            try {
+                const res = await fetch('/api/fazendas');
+                const fazendas = await res.json();
+                dashFazenda.innerHTML = '<option value="">Selecione a Fazenda</option>' + 
+                    fazendas.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+            } catch(err) { console.error("Error loading for dashboard", err); }
+        }
+        loadDashFazendas();
+
+        // Load Pastos for Dashboard on Fazenda Change
+        dashFazenda.addEventListener('change', async () => {
+             const fId = dashFazenda.value;
+             dashPasto.innerHTML = '<option value="">Carregando...</option>';
+             dashPasto.disabled = true;
+             
+             if (fId) {
+                 try {
+                     const res = await fetch(`/api/pastos/fazenda/${fId}`);
+                     const pastos = await res.json();
+                     dashPasto.innerHTML = '<option value="">Selecione o Pasto</option>' + 
+                         pastos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                     dashPasto.disabled = false;
+                 } catch(err) {
+                     console.error(err);
+                     dashPasto.innerHTML = '<option value="">Erro</option>';
+                 }
+             } else {
+                 dashPasto.innerHTML = '<option value="">Selecione Fazenda</option>';
+             }
+             updateDashboard();
+        });
+
+        // Hook listeners
+        dashPasto.addEventListener('change', updateDashboard);
+        dashPeriod.addEventListener('change', () => {
+            if (dashPeriod.value === 'custom') {
+                dashCustomDates.style.display = 'flex';
+            } else {
+                dashCustomDates.style.display = 'none';
+                updateDashboard();
+            }
+        });
+        
+        // Update on date change if custom is selected
+        dashStart.addEventListener('change', updateDashboard);
+        dashEnd.addEventListener('change', updateDashboard);
+
+        async function updateDashboard() {
+            const pastoId = dashPasto.value;
+            const fazendaId = dashFazenda.value;
+            const period = dashPeriod.value;
+            
+            // Reset cards
+            document.getElementById('kpi-period-avg').innerText = '-';
+            document.getElementById('kpi-period-total').innerText = 'Total Consumido: -';
+
+            if (!pastoId) {
+                // Cannot update without Pasto
+                return; 
+            }
+            
+            if (period === 'custom' && (!dashStart.value || !dashEnd.value)) {
+                return; // Wait for both dates
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    fazenda_id: fazendaId,
+                    pasto_id: pastoId,
+                    period: period,
+                    start_date: dashStart.value,
+                    end_date: dashEnd.value
+                });
+                
+                const res = await fetch(`/api/dashboard/dieta-consumption?${params.toString()}`);
+                if (!res.ok) throw new Error('API Error');
+                const data = await res.json();
+
+                // Update UI
+                // Card 1: Period
+                const perOx = parseFloat(data.period_consumption || 0).toFixed(3);
+                document.getElementById('kpi-period-avg').innerText = `${perOx} kg/dia`;
+                document.getElementById('kpi-period-total').innerText = `Total: ${parseFloat(data.period_total).toFixed(2)} kg (Rebanho: ${data.cattle_count}, Dias: ${data.days_considered})`;
+
+            } catch (err) {
+                console.error("Dashboard error:", err);
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const existingMsg = document.querySelector('.toast-message');
+            if (existingMsg) existingMsg.remove();
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `toast-message toast-${type}`;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => msgDiv.remove(), 300);
+            }, 5000);
+        }
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

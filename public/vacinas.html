@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Vacinas</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-size {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        #page-size:hover {
+            border-color: var(--primary-color);
+        }
+        #page-size:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .pending-vaccines {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+        .vaccine-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            background: #e74c3c;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .vaccine-badge.applied {
+            background: #27ae60;
+        }
+        .vaccine-badge.pending {
+            background: #e74c3c;
+        }
+        .clear-btn {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 1rem;
+            transition: background 0.2s;
+        }
+        .clear-btn:hover {
+            background: #7f8c8d;
+        }
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            font-weight: 500;
+        }
+        .toast-success {
+            background: #27ae60;
+        }
+        .toast-warning {
+            background: #f1c40f; /* Or #f39c12 for darker yellow/orange */
+            color: #333; /* Better contrast on yellow */
+        }
+        .toast-error {
+            background: #c0392b;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html" class="active"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Gerenciar Vacinas</h2>
+            </div>
+
+            <!-- Form Section -->
+            <form id="vacina-form">
+                <input type="hidden" id="vacina-id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="boton" list="boton-list" placeholder="Digite o BOTON" required>
+                        <datalist id="boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Número do Brinco</label>
+                        <input type="text" id="brinco" list="brinco-list" placeholder="Ex: 001234">
+                        <datalist id="brinco-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Vacina</label>
+                        <input type="text" id="vacina" list="vacina-list" placeholder="Selecione a vacina" required>
+                        <datalist id="vacina-list">
+                            <option value="Antiaftosa">
+                            <option value="B19">
+                            <option value="BVD">
+                            <option value="Doenças Respiratórias">
+                            <option value="IBR">
+                            <option value="Leptospirose">
+                            <option value="Pneumonias">
+                            <option value="Polivalente">
+                            <option value="RB51">
+                            <option value="Toxina Botulínica">
+                            <option value="Vacina Antirrábica">
+                        </datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Data da Vacina</label>
+                        <input type="date" id="data-vacina" required>
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end;">
+                        <button type="submit" class="btn-primary">Salvar</button>
+                        <button type="button" onclick="resetForm()" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Pending Vaccines Section -->
+            <div class="pending-vaccines" style="background: #ffffff; border: 1px solid #e74c3c;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="color: #e74c3c;">Lista de Vacinas Pendentes</h3>
+                    <button onclick="clearPendingList()" class="btn-cancel">Limpar</button>
+                </div>
+                <div class="form-group" style="max-width: 400px; margin-bottom: 1rem;">
+                    <label>Selecione o Animal (BOTON)</label>
+                    <input type="text" id="pending-boton" list="pending-boton-list" placeholder="Digite o BOTON" onchange="loadPendingVaccines()">
+                    <datalist id="pending-boton-list"></datalist>
+                </div>
+                <div id="pending-list">
+                    <p style="color: #666;">Selecione um animal para ver as vacinas pendentes</p>
+                </div>
+            </div>
+
+            <!-- Applied Vaccines Section -->
+            <div class="pending-vaccines" style="background: #ffffff; border: 1px solid #27ae60;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="color: #27ae60;">Lista de Vacinas Aplicadas</h3>
+                    <button onclick="clearAppliedList()" class="btn-cancel">Limpar</button>
+                </div>
+                <div class="form-group" style="max-width: 400px; margin-bottom: 1rem;">
+                    <label>Selecione o Animal (BOTON)</label>
+                    <input type="text" id="applied-boton" list="applied-boton-list" placeholder="Digite o BOTON" onchange="loadAppliedVaccines()">
+                    <datalist id="applied-boton-list"></datalist>
+                </div>
+                <div id="applied-list">
+                    <p style="color: #666;">Selecione um animal para ver as vacinas aplicadas</p>
+                </div>
+            </div>
+
+
+            <div class="filter-section" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">Filtros de Pesquisa</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="filter-boton" list="filter-boton-list" placeholder="Digite o BOTON">
+                        <datalist id="filter-boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Numero do Brinco</label>
+                        <input type="text" id="filter-brinco" list="filter-brinco-list" placeholder="Digite o brinco">
+                        <datalist id="filter-brinco-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Vacina</label>
+                        <input type="text" id="filter-vacina" list="filter-vacina-list" placeholder="Todas">
+                        <datalist id="filter-vacina-list">
+                            <option value="Antiaftosa">
+                            <option value="B19">
+                            <option value="BVD">
+                            <option value="Doenças Respiratórias">
+                            <option value="IBR">
+                            <option value="Leptospirose">
+                            <option value="Pneumonias">
+                            <option value="Polivalente">
+                            <option value="RB51">
+                            <option value="Toxina Botulínica">
+                            <option value="Vacina Antirrábica">
+                        </datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" id="filter-data">
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <button onclick="applyFilters()" type="button" class="btn-primary">Aplicar Filtros</button>
+                    <button onclick="clearFilters()" type="button" class="btn-cancel">Limpar Filtros</button>
+                </div>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Histórico de Vacinas</h3>
+                </div>
+                <table id="vacinas-table">
+                    <thead>
+                        <tr>
+                            <th>BOTON</th>
+                            <th>Brinco</th>
+                            <th>Vacina</th>
+                            <th>Data da Aplicação</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: #666; font-size: 0.9rem;">Registros por página:</span>
+                    <select id="page-size">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span id="page-info" style="color: #666; font-size: 0.9rem;"></span>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="first-page" class="pagination-btn">««</button>
+                    <button id="prev-page" class="pagination-btn">‹ Anterior</button>
+                    <button id="next-page" class="pagination-btn">Próxima ›</button>
+                    <button id="last-page" class="pagination-btn">»»</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allVacinas = [];
+        let filteredVacinas = [];
+        let currentPage = 1;
+        let pageSize = 10;
+        let allBois = [];
+
+        // Initialize
+        async function init() {
+            await loadBois();
+            await loadAutocompleteData();
+            await loadVacinas();
+        }
+
+        // Load all bois for BOTON autocomplete
+        async function loadBois() {
+            try {
+                const res = await fetch('/api/bois');
+                allBois = await res.json();
+                
+                const botonList = document.getElementById('boton-list');
+                const pendingBotonList = document.getElementById('pending-boton-list');
+                const appliedBotonList = document.getElementById('applied-boton-list');
+                const filterBotonList = document.getElementById('filter-boton-list');
+                
+                botonList.innerHTML = '';
+                pendingBotonList.innerHTML = '';
+                appliedBotonList.innerHTML = '';
+                filterBotonList.innerHTML = '';
+                
+                allBois.forEach(boi => {
+                    const displayText = `${boi.name}${boi.brinco ? ' (' + boi.brinco + ')' : ''}`;
+                    botonList.innerHTML += `<option value="${boi.name}">`;
+                    pendingBotonList.innerHTML += `<option value="${boi.name}">`;
+                    appliedBotonList.innerHTML += `<option value="${boi.name}">`;
+                    filterBotonList.innerHTML += `<option value="${boi.name}">`;
+                });
+            } catch (err) {
+                console.error('Error loading bois:', err);
+            }
+        }
+
+        // Auto-fill Brinco when BOTON is selected or typed
+        function handleBotonChange(inputElement) {
+            const botonValue = inputElement.value.trim().toLowerCase();
+            const boi = allBois.find(b => b.name.toLowerCase() === botonValue);
+            
+            const brincoInput = document.getElementById('brinco');
+            
+            if (boi) {
+                // If found, fill valid values or clear if empty
+                brincoInput.value = boi.brinco || '';
+            } else {
+                // If not found, clear the field
+                brincoInput.value = '';
+            }
+        }
+
+        document.getElementById('boton').addEventListener('input', function() {
+            handleBotonChange(this);
+        });
+
+        document.getElementById('boton').addEventListener('change', function() {
+            handleBotonChange(this);
+        });
+
+        // Auto-fill Filter Brinco when Filter BOTON is selected or typed
+        function handleFilterBotonChange(inputElement) {
+            const botonValue = inputElement.value.trim().toLowerCase();
+            const boi = allBois.find(b => b.name.toLowerCase() === botonValue);
+            
+            const brincoInput = document.getElementById('filter-brinco');
+            
+            if (boi) {
+                // If found, fill valid values or clear if empty
+                brincoInput.value = boi.brinco || '';
+            } else {
+                // If not found, clear the field
+                brincoInput.value = '';
+            }
+        }
+
+        document.getElementById('filter-boton').addEventListener('input', function() {
+            handleFilterBotonChange(this);
+        });
+
+        document.getElementById('filter-boton').addEventListener('change', function() {
+            handleFilterBotonChange(this);
+        });
+
+        // Load autocomplete data
+        async function loadAutocompleteData() {
+            try {
+                const res = await fetch('/api/vacinas/autocomplete');
+                const data = await res.json();
+                
+                document.getElementById('brinco-list').innerHTML = data.brincos.map(v => `<option value="${v}">`).join('');
+                document.getElementById('filter-brinco-list').innerHTML = data.brincos.map(v => `<option value="${v}">`).join('');
+            } catch (err) {
+                console.error('Error loading autocomplete data:', err);
+            }
+        }
+
+        // Load vacinas with filters
+        async function loadVacinas() {
+            const params = new URLSearchParams();
+            
+            const boton = document.getElementById('filter-boton').value;
+            const brinco = document.getElementById('filter-brinco').value;
+            const vacina = document.getElementById('filter-vacina').value;
+            const data = document.getElementById('filter-data').value;
+            
+            if (boton) params.append('boton', boton);
+            if (brinco) params.append('brinco', brinco);
+            if (vacina) params.append('vacina', vacina);
+            if (data) params.append('data', data);
+            
+            try {
+                const res = await fetch(`/api/vacinas?${params.toString()}`);
+                allVacinas = await res.json();
+                filteredVacinas = allVacinas;
+                
+                renderPage();
+            } catch (err) {
+                console.error('Error loading vacinas:', err);
+            }
+        }
+
+
+
+        // Render page with pagination
+        function renderPage() {
+            const totalRecords = filteredVacinas.length;
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = filteredVacinas.slice(startIndex, endIndex);
+            
+            // Render table
+            const tbody = document.querySelector('#vacinas-table tbody');
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum registro encontrado</td></tr>';
+            } else {
+                tbody.innerHTML = pageData.map(v => `
+                    <tr>
+                        <td>${v.boton || '-'}</td>
+                        <td>${v.brinco || '-'}</td>
+                        <td>${v.vacina}</td>
+                        <td>${formatDate(v.data_vacina)}</td>
+                        <td>
+                            <button onclick="editVacina(${v.id}, ${JSON.stringify(v).replace(/"/g, '&quot;')})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                            <button onclick="deleteVacina(${v.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            
+            // Update pagination info
+            const pageInfo = document.getElementById('page-info');
+            if (totalRecords === 0) {
+                pageInfo.textContent = 'Nenhum registro encontrado';
+            } else {
+                pageInfo.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} registros`;
+            }
+            
+            // Update button states
+            document.getElementById('first-page').disabled = currentPage === 1;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages || totalRecords === 0;
+            document.getElementById('last-page').disabled = currentPage === totalPages || totalRecords === 0;
+        }
+
+        // Pagination event listeners
+        document.getElementById('page-size').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('first-page').addEventListener('click', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredVacinas.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        document.getElementById('last-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredVacinas.length / pageSize);
+            currentPage = totalPages;
+            renderPage();
+        });
+
+        // Apply filters
+        function applyFilters() {
+            currentPage = 1;
+            loadVacinas();
+        }
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filter-boton').value = '';
+            document.getElementById('filter-brinco').value = '';
+            document.getElementById('filter-vacina').value = '';
+            document.getElementById('filter-data').value = '';
+            currentPage = 1;
+            loadVacinas();
+        }
+
+        // Load pending vaccines
+        async function loadPendingVaccines() {
+            const boton = document.getElementById('pending-boton').value;
+            const pendingList = document.getElementById('pending-list');
+            
+            if (!boton) {
+                pendingList.innerHTML = '<p style="color: #666;">Selecione um animal para ver as vacinas pendentes</p>';
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/api/vacinas/pendentes/${encodeURIComponent(boton)}`);
+                const data = await res.json();
+                
+                if (data.pending.length === 0) {
+                    pendingList.innerHTML = '<p style="color: #27ae60; font-weight: bold;">✓ Todas as vacinas foram aplicadas!</p>';
+                } else {
+                    pendingList.innerHTML = '<div>' + 
+                        data.pending.map(v => `<span class="vaccine-badge pending">${v}</span>`).join('') +
+                        '</div>';
+                }
+            } catch (err) {
+                console.error('Error loading pending vaccines:', err);
+                pendingList.innerHTML = '<p style="color: #e74c3c;">Erro ao carregar vacinas pendentes</p>';
+            }
+        }
+
+        // Load applied vaccines
+        async function loadAppliedVaccines() {
+            const boton = document.getElementById('applied-boton').value;
+            const appliedList = document.getElementById('applied-list');
+            
+            if (!boton) {
+                appliedList.innerHTML = '<p style="color: #666;">Selecione um animal para ver as vacinas aplicadas</p>';
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/api/vacinas/pendentes/${encodeURIComponent(boton)}`);
+                const data = await res.json();
+                
+                if (data.applied.length === 0) {
+                    appliedList.innerHTML = '<p style="color: #e74c3c; font-weight: bold;">✗ Nenhuma vacina foi aplicada ainda</p>';
+                } else {
+                    appliedList.innerHTML = '<div>' + 
+                        data.applied.map(v => `<span class="vaccine-badge applied">${v}</span>`).join('') +
+                        '</div>';
+                }
+            } catch (err) {
+                console.error('Error loading applied vaccines:', err);
+                appliedList.innerHTML = '<p style="color: #e74c3c;">Erro ao carregar vacinas aplicadas</p>';
+            }
+        }
+
+        // Clear pending list
+        function clearPendingList() {
+            document.getElementById('pending-boton').value = '';
+            document.getElementById('pending-list').innerHTML = '<p style="color: #666;">Selecione um animal para ver as vacinas pendentes</p>';
+        }
+
+        // Clear applied list
+        function clearAppliedList() {
+            document.getElementById('applied-boton').value = '';
+            document.getElementById('applied-list').innerHTML = '<p style="color: #666;">Selecione um animal para ver as vacinas aplicadas</p>';
+        }
+
+        // Show Toast Message
+        function showToast(message, type = 'success') {
+            // Remove any existing message
+            const existingMsg = document.querySelector('.toast-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            // Create new message
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `toast-message toast-${type}`;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+            
+            // Remove after 5 seconds with animation
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        // Form submit
+        document.getElementById('vacina-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('vacina-id').value;
+            const botonInput = document.getElementById('boton').value;
+            const brinco = document.getElementById('brinco').value;
+            const vacina = document.getElementById('vacina').value;
+            const data_vacina = document.getElementById('data-vacina').value;
+            
+            // Find boi_id from boton name
+            const boi = allBois.find(b => b.name === botonInput);
+            if (!boi) {
+                alert('Animal não encontrado. Por favor, selecione um animal válido.');
+                return;
+            }
+            
+            const boi_id = boi.id;
+            
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/vacinas/${id}` : '/api/vacinas';
+            
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ boi_id, chip: null, brinco, vacina, data_vacina })
+                });
+                
+                if (response.ok) {
+                    // Show success message based on operation
+                    if (id) {
+                         showToast('Registro alterado com sucesso!', 'warning');
+                    } else {
+                         showToast('Registro salvo com sucesso!', 'success');
+                    }
+                    
+                    // Reset form
+                    resetForm();
+                    
+                    // Reload data to update grid
+                    await loadAutocompleteData();
+                    await loadVacinas();
+                } else {
+                    alert('Erro ao salvar vacina');
+                }
+            } catch (err) {
+                console.error('Error saving vacina:', err);
+                alert('Erro ao salvar vacina');
+            }
+        });
+
+        // Edit vacina
+        window.editVacina = (id, vacinaData) => {
+            document.getElementById('vacina-id').value = id;
+            
+            // Find boi name from boi_id
+            const boi = allBois.find(b => b.id === vacinaData.boi_id);
+            document.getElementById('boton').value = boi ? boi.name : '';
+            
+            document.getElementById('brinco').value = vacinaData.brinco || '';
+            document.getElementById('vacina').value = vacinaData.vacina || '';
+            document.getElementById('data-vacina').value = vacinaData.data_vacina || '';
+            
+            // Scroll to form
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        // Delete vacina
+        window.deleteVacina = async (id) => {
+            if (confirm('Deseja excluir o registro?')) {
+                try {
+                    const response = await fetch(`/api/vacinas/${id}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        showToast('Registro excluído com sucesso!', 'error');
+                        await loadAutocompleteData();
+                        await loadVacinas();
+                    } else {
+                        alert('Erro ao excluir registro');
+                    }
+                } catch (error) {
+                    alert('Erro ao excluir registro: ' + error.message);
+                }
+            }
+        };
+
+        // Reset form
+        window.resetForm = () => {
+            document.getElementById('vacina-id').value = '';
+            document.getElementById('vacina-form').reset();
+        };
+
+        // Format date
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        // Export to PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+            
+            let yPosition = 15;
+            
+            // Title
+            doc.setFontSize(16);
+            doc.text('Controle de Vacinas', 14, yPosition);
+            yPosition += 10;
+            
+            // Add chart as image
+            if (chartInstance) {
+                const chartImage = chartInstance.toBase64Image();
+                doc.addImage(chartImage, 'PNG', 14, yPosition, 270, 80);
+                yPosition += 90;
+            }
+            
+            // Prepare table data
+            const tableData = filteredVacinas.map(v => [
+                v.boton || '-',
+                v.brinco || '-',
+                v.vacina,
+                formatDate(v.data_vacina)
+            ]);
+            
+            // Generate table
+            doc.autoTable({
+                head: [['BOTON', 'Brinco', 'Vacina', 'Data da Aplicação']],
+                body: tableData,
+                startY: yPosition,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [41, 128, 185] }
+            });
+            
+            yPosition = doc.lastAutoTable.finalY + 10;
+            
+            // Add pending vaccines section if a BOTON is selected
+            const selectedBoton = document.getElementById('pending-boton').value;
+            if (selectedBoton && yPosition < 180) {
+                doc.setFontSize(12);
+                doc.text(`Vacinas Pendentes - ${selectedBoton}`, 14, yPosition);
+                yPosition += 7;
+                
+                const pendingText = document.getElementById('pending-list').textContent;
+                doc.setFontSize(10);
+                const lines = doc.splitTextToSize(pendingText, 270);
+                doc.text(lines, 14, yPosition);
+            }
+            
+            // Save with timestamp filename
+            doc.save(`Vacinas_${timestamp}.pdf`);
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

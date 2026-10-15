@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Baixa de Bois</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-size {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        #page-size:hover {
+            border-color: var(--primary-color);
+        }
+        #page-size:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .chart-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            font-weight: 500;
+        }
+        .toast-success {
+            background: #27ae60;
+        }
+        .toast-warning {
+            background: #f1c40f;
+            color: #333;
+        }
+        .toast-error {
+            background: #c0392b;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html" class="active"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Baixa de Bois</h2>
+            </div>
+
+            <form id="baixa-form">
+                <input type="hidden" id="baixa-id">
+                <input type="hidden" id="boi-id">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label>BOTON *</label>
+                        <input type="text" id="boton" list="boton-list" required placeholder="Digite ou selecione o BOTON">
+                        <datalist id="boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Número do Brinco</label>
+                        <input type="text" id="brinco" placeholder="Preenchido automaticamente">
+                    </div>
+                    <div class="form-group">
+                        <label>Último Peso (kg)</label>
+                        <input type="number" step="0.01" id="ultimo-peso" readonly style="background-color: #f0f0f0; cursor: not-allowed;" placeholder="Automático">
+                    </div>
+                    <div class="form-group">
+                        <label>Data da Baixa *</label>
+                        <input type="date" id="data-baixa" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status *</label>
+                        <select id="status" required>
+                            <option value="">Selecione o status</option>
+                            <option value="Vendido">Vendido</option>
+                            <option value="Morreu">Morreu</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Observação (máx. 200 caracteres)</label>
+                        <textarea id="observacao" maxlength="200" rows="3" placeholder="Digite observações sobre a baixa"></textarea>
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end; grid-column: span 2;">
+                         <button type="submit" class="btn-primary">Salvar</button>
+                         <button type="button" onclick="resetForm()" class="btn-cancel">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Chart Section -->
+            <div class="chart-container">
+                <h3 style="text-align: center; margin-bottom: 1rem;">Baixas por Motivo</h3>
+                <canvas id="baixasChart"></canvas>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="filter-section" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">Filtros de Pesquisa</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="filter-boton" list="filter-boton-list" placeholder="Digite o BOTON">
+                        <datalist id="filter-boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Número do Brinco</label>
+                        <input type="text" id="filter-brinco" list="filter-brinco-list" placeholder="Digite o brinco">
+                        <datalist id="filter-brinco-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="filter-status">
+                            <option value="">Todos</option>
+                            <option value="Vendido">Vendido</option>
+                            <option value="Morreu">Morreu</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data da Baixa</label>
+                        <input type="date" id="filter-data">
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <button onclick="applyFilters()" type="button" class="btn-primary">Aplicar Filtros</button>
+                    <button onclick="clearFilters()" type="button" class="btn-cancel">Limpar</button>
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div style="margin-bottom: 1rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button onclick="exportChartToPDF()" type="button" class="btn-primary" style="background: #9b59b6;">
+                    📊 Exportar Gráfico PDF
+                </button>
+                <button onclick="exportGridToPDF()" type="button" class="btn-primary" style="background: #27ae60;">
+                    📄 Exportar Grid PDF
+                </button>
+            </div>
+
+            <div class="table-container">
+                <table id="baixas-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>BOTON</th>
+                            <th>Brinco</th>
+                            <th>Último Peso (kg)</th>
+                            <th>Data da Baixa</th>
+                            <th>Status</th>
+                            <th>Observação</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: #666; font-size: 0.9rem;">Registros por página:</span>
+                    <select id="page-size">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span id="page-info" style="color: #666; font-size: 0.9rem; margin-left: 1rem;"></span>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="first-page" class="pagination-btn">
+                        ««
+                    </button>
+                    <button id="prev-page" class="pagination-btn">
+                        ‹ Anterior
+                    </button>
+                    <button id="next-page" class="pagination-btn">
+                        Próxima ›
+                    </button>
+                    <button id="last-page" class="pagination-btn">
+                        »»
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('baixa-form');
+        const tableBody = document.querySelector('#baixas-table tbody');
+        let baixasChart = null;
+
+        function showToast(message, type = 'success') {
+            const existingMsg = document.querySelector('.toast-message');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `toast-message toast-${type}`;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+            
+            setTimeout(() => {
+                msgDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => {
+                    msgDiv.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        // Pagination state
+        let allBaixas = [];
+        let filteredBaixas = [];
+        let allBoisData = []; // Cache for bois data
+        let currentPage = 1;
+        let pageSize = 10;
+
+        // Load BOTON autocomplete from bois table
+        // Load BOTON autocomplete from bois table
+        async function loadBotonAutocomplete() {
+            try {
+                const res = await fetch('/api/bois');
+                allBoisData = await res.json(); // Store in cache
+                const botonList = document.getElementById('boton-list');
+                botonList.innerHTML = allBoisData.map(b => `<option value="${b.name}">${b.name}${b.brinco ? ' - ' + b.brinco : ''}</option>`).join('');
+            } catch (err) {
+                console.error("Error loading bois:", err);
+            }
+        }
+
+        // Handle BOTON selection
+        // Handle BOTON selection
+        document.getElementById('boton').addEventListener('input', async (e) => {
+            const boton = e.target.value;
+            if (!boton) {
+                document.getElementById('brinco').value = '';
+                document.getElementById('ultimo-peso').value = '';
+                document.getElementById('boi-id').value = '';
+                return;
+            }
+
+            // Use cached boi data
+            const boi = allBoisData.find(b => b.name === boton);
+            
+            if (boi) {
+                document.getElementById('boi-id').value = boi.id;
+                document.getElementById('brinco').value = boi.brinco || '';
+                
+                // Get last weight
+                try {
+                    const weightRes = await fetch(`/api/baixas/last-weight/${encodeURIComponent(boton)}`);
+                    if (weightRes.ok) {
+                         const weightData = await weightRes.json();
+                         document.getElementById('ultimo-peso').value = weightData.last_weight || '';
+                    } else {
+                         console.error('Error fetching weight:', weightRes.status);
+                    }
+                } catch (err) {
+                    console.error("Error fetching last weight:", err);
+                }
+            }
+        });
+
+        async function loadBaixas() {
+            try {
+                const res = await fetch('/api/baixas');
+                allBaixas = await res.json();
+                populateFilterAutocomplete();
+                applyFilters(); // Apply current filters (or show all if empty)
+            } catch (err) {
+                console.error("Erro ao carregar baixas:", err);
+                alert("Erro ao carregar dados.");
+            }
+        }
+
+        function renderPage() {
+            const totalRecords = filteredBaixas.length;
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            // Ensure current page is valid
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = filteredBaixas.slice(startIndex, endIndex);
+            
+            // Render table
+            tableBody.innerHTML = pageData.map(b => `
+                <tr>
+                    <td>${b.id}</td>
+                    <td>${b.boton}</td>
+                    <td>${b.brinco || '-'}</td>
+                    <td>${b.ultimo_peso ? b.ultimo_peso + ' kg' : '-'}</td>
+                    <td>${formatDate(b.data_baixa)}</td>
+                    <td><span style="padding: 0.25rem 0.75rem; border-radius: 4px; background: ${b.status === 'Vendido' ? '#27ae60' : '#e74c3c'}; color: white; font-size: 0.85rem;">${b.status}</span></td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${b.observacao || ''}">${b.observacao || '-'}</td>
+                    <td>
+                        <button onclick="editBaixa(${b.id})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button onclick="deleteBaixa(${b.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Update pagination info
+            const pageInfo = document.getElementById('page-info');
+            if (totalRecords === 0) {
+                pageInfo.textContent = 'Nenhum registro encontrado';
+            } else {
+                pageInfo.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} registros`;
+            }
+            
+            // Update button states
+            const firstBtn = document.getElementById('first-page');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+            const lastBtn = document.getElementById('last-page');
+            
+            firstBtn.disabled = currentPage === 1;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages || totalRecords === 0;
+            lastBtn.disabled = currentPage === totalPages || totalRecords === 0;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const [year, month, day] = dateStr.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        // Pagination event listeners
+        document.getElementById('page-size').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('first-page').addEventListener('click', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredBaixas.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        document.getElementById('last-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredBaixas.length / pageSize);
+            currentPage = totalPages;
+            renderPage();
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('baixa-id').value;
+            const boi_id = document.getElementById('boi-id').value;
+            const boton = document.getElementById('boton').value;
+            const brinco = document.getElementById('brinco').value;
+            const ultimo_peso = document.getElementById('ultimo-peso').value;
+            const data_baixa = document.getElementById('data-baixa').value;
+            const status = document.getElementById('status').value;
+            const observacao = document.getElementById('observacao').value;
+
+            if (!boi_id) {
+                alert('Por favor, selecione um BOTON válido da lista');
+                return;
+            }
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/baixas/${id}` : '/api/baixas';
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    boi_id,
+                    boton, 
+                    brinco, 
+                    ultimo_peso, 
+                    data_baixa, 
+                    status, 
+                    observacao 
+                })
+            });
+
+            if (response.ok) {
+                if (id) {
+                    showToast('Registro alterado com sucesso!', 'warning');
+                } else {
+                    showToast('Registro salvo com sucesso!', 'success');
+                }
+                resetForm();
+                loadBaixas();
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                const msg = errData.error || response.statusText;
+                alert(`Erro ao salvar baixa: ${msg}`);
+            }
+        });
+
+        window.editBaixa = (id) => {
+            const baixaData = allBaixas.find(b => b.id === id);
+            if (!baixaData) {
+                console.error('Baixa not found:', id);
+                return;
+            }
+            
+            document.getElementById('baixa-id').value = id;
+            document.getElementById('boi-id').value = baixaData.boi_id || '';
+            document.getElementById('boton').value = baixaData.boton || '';
+            document.getElementById('brinco').value = baixaData.brinco || '';
+            document.getElementById('ultimo-peso').value = baixaData.ultimo_peso || '';
+            document.getElementById('data-baixa').value = baixaData.data_baixa || '';
+            document.getElementById('status').value = baixaData.status || '';
+            document.getElementById('observacao').value = baixaData.observacao || '';
+            
+            // Scroll to form
+            document.getElementById('baixa-form').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.deleteBaixa = async (id) => {
+            if(confirm('Deseja excluir o registro?')) {
+                try {
+                    const response = await fetch(`/api/baixas/${id}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        showToast('Registro excluído com sucesso!', 'error');
+                        await loadBaixas();
+                        if (filteredBaixas.length > 0 && currentPage > Math.ceil(filteredBaixas.length / pageSize)) {
+                            currentPage = 1;
+                        }
+                    } else {
+                        alert('Erro ao excluir registro');
+                    }
+                } catch (error) {
+                    alert('Erro ao excluir registro: ' + error.message);
+                }
+            }
+        };
+
+        window.resetForm = () => {
+            document.getElementById('baixa-id').value = '';
+            document.getElementById('boi-id').value = '';
+            form.reset();
+        };
+
+        // Filter autocomplete population
+        function populateFilterAutocomplete() {
+            const botonSet = new Set();
+            const brincoSet = new Set();
+            
+            allBaixas.forEach(b => {
+                if (b.boton) botonSet.add(b.boton);
+                if (b.brinco) brincoSet.add(b.brinco);
+            });
+            
+            document.getElementById('filter-boton-list').innerHTML = Array.from(botonSet).map(v => `<option value="${v}">`).join('');
+            document.getElementById('filter-brinco-list').innerHTML = Array.from(brincoSet).map(v => `<option value="${v}">`).join('');
+        }
+
+        // Filter functions
+        function applyFilters() {
+            const boton = document.getElementById('filter-boton').value.toLowerCase();
+            const brinco = document.getElementById('filter-brinco').value.toLowerCase();
+            const status = document.getElementById('filter-status').value;
+            const data = document.getElementById('filter-data').value;
+            
+            filteredBaixas = allBaixas.filter(b => {
+                return (!boton || (b.boton && b.boton.toLowerCase().includes(boton))) &&
+                       (!brinco || (b.brinco && b.brinco.toLowerCase().includes(brinco))) &&
+                       (!status || b.status === status) &&
+                       (!data || b.data_baixa === data);
+            });
+            
+            currentPage = 1;
+            renderPage();
+            updateChart();
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-boton').value = '';
+            document.getElementById('filter-brinco').value = '';
+            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-data').value = '';
+            filteredBaixas = allBaixas;
+            currentPage = 1;
+            renderPage();
+            updateChart();
+        }
+
+        // Chart functions
+        function updateChart() {
+            const statusCounts = {
+                'Vendido': 0,
+                'Morreu': 0
+            };
+            
+            filteredBaixas.forEach(b => {
+                if (statusCounts.hasOwnProperty(b.status)) {
+                    statusCounts[b.status]++;
+                }
+            });
+            
+            const ctx = document.getElementById('baixasChart').getContext('2d');
+            
+            if (baixasChart) {
+                baixasChart.destroy();
+            }
+            
+            baixasChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Vendido', 'Morreu'],
+                    datasets: [{
+                        data: [statusCounts['Vendido'], statusCounts['Morreu']],
+                        backgroundColor: ['#27ae60', '#e74c3c'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        datalabels: {
+                            color: '#fff',
+                            font: {
+                                weight: 'bold',
+                                size: 16
+                            },
+                            formatter: (value, ctx) => {
+                                if (value === 0) return '';
+                                return value;
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        // PDF Export functions
+        function exportChartToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+            
+            // Title
+            doc.setFontSize(16);
+            doc.text('Baixas de Bois - Gráfico', 14, 15);
+            
+            // Get chart as image
+            const canvas = document.getElementById('baixasChart');
+            const chartImage = canvas.toDataURL('image/png');
+            
+            // Add chart to PDF
+            doc.addImage(chartImage, 'PNG', 40, 30, 130, 130);
+            
+            // Add summary
+            const vendidos = filteredBaixas.filter(b => b.status === 'Vendido').length;
+            const mortos = filteredBaixas.filter(b => b.status === 'Morreu').length;
+            const total = filteredBaixas.length;
+            
+            doc.setFontSize(12);
+            doc.text(`Total de Baixas: ${total}`, 14, 170);
+            doc.text(`Vendidos: ${vendidos}`, 14, 180);
+            doc.text(`Mortos: ${mortos}`, 14, 190);
+            
+            // Save with timestamp filename
+            doc.save(`Baixas_Grafico_${timestamp}.pdf`);
+        }
+
+        function exportGridToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+            
+            // Title
+            doc.setFontSize(16);
+            doc.text('Baixas de Bois', 14, 15);
+            
+            // Prepare table data from filtered results
+            const tableData = filteredBaixas.map(b => [
+                b.id,
+                b.boton,
+                b.brinco || '-',
+                b.ultimo_peso ? b.ultimo_peso + ' kg' : '-',
+                formatDate(b.data_baixa),
+                b.status,
+                b.observacao || '-'
+            ]);
+            
+            // Generate table
+            doc.autoTable({
+                head: [['ID', 'BOTON', 'Brinco', 'Último Peso', 'Data Baixa', 'Status', 'Observação']],
+                body: tableData,
+                startY: 20,
+                styles: { fontSize: 9 },
+                headStyles: { fillColor: [41, 128, 185] },
+                columnStyles: {
+                    6: { cellWidth: 50 } // Observação column
+                }
+            });
+            
+            // Save with timestamp filename
+            doc.save(`Baixas_${timestamp}.pdf`);
+        }
+
+        // Initialize
+        loadBotonAutocomplete();
+        loadBaixas();
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

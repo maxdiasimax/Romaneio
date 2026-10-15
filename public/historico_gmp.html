@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Romaneio - Histórico G.M.P</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-size {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        #page-size:hover {
+            border-color: var(--primary-color);
+        }
+        #page-size:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .weight-gain-positive {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .weight-gain-negative {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            cursor: help;
+        }
+        .status-vendido { background-color: #27ae60; }
+        .status-morreu { background-color: #e74c3c; }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 80px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            padding: 5px 0;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -40px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Romaneio</h1>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
+                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
+                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
+                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
+                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
+                <li><a href="historico_gmp.html" class="active"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
+                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
+                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
+                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
+                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
+                <li><a href="genealogia.html"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
+                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
+            </ul>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
+        </aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Histórico G.M.P - Ganho Médio de Peso</h2>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="filter-section" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">Filtros de Pesquisa</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>BOTON</label>
+                        <input type="text" id="filter-boton" list="boton-list" placeholder="Digite o BOTON">
+                        <datalist id="boton-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Brinco</label>
+                        <input type="text" id="filter-brinco" list="brinco-list" placeholder="Digite o brinco">
+                        <datalist id="brinco-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Raça</label>
+                        <select id="filter-raca">
+                            <option value="">Todas</option>
+                            <option value="Aberdeen">Aberdeen</option>
+                            <option value="Anelorado">Anelorado</option>
+                            <option value="Braford">Braford</option>
+                            <option value="Cruzado">Cruzado</option>
+                            <option value="Hereford">Hereford</option>
+                            <option value="Nelore">Nelore</option>
+                            <option value="Red Angus">Red Angus</option>
+                            <option value="Semepol">Semepol</option>
+                            <option value="Simental">Simental</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data de Chegada</label>
+                        <input type="date" id="filter-data">
+                    </div>
+                    <div class="form-group">
+                        <label>Vendedor</label>
+                        <input type="text" id="filter-vendedor" list="vendedor-list" placeholder="Digite o vendedor">
+                        <datalist id="vendedor-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Nome do vendedor</label>
+                        <input type="text" id="filter-nome-vendedor" list="vendedor-list-2" placeholder="Digite o nome do vendedor">
+                        <datalist id="vendedor-list-2"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Local de Compra</label>
+                        <input type="text" id="filter-local" list="local-list" placeholder="Digite o local">
+                        <datalist id="local-list"></datalist>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <button onclick="applyFilters()" type="button" class="btn-primary">Aplicar Filtros</button>
+                    <button onclick="clearFilters()" type="button" class="btn-cancel">Limpar Filtros</button>
+                </div>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="table-container" style="margin-bottom: 1.5rem;">
+                <div class="table-header">
+                    <h3>Evolução de Ganho de Peso</h3>
+                </div>
+                <div style="height: 400px; width: 100%; padding: 1rem;">
+                    <canvas id="weightChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Export Button -->
+            <div style="margin-bottom: 1rem; text-align: right;">
+                <button onclick="exportToPDF()" type="button" class="btn-primary" style="background: #27ae60;">
+                    📄 Exportar para PDF
+                </button>
+            </div>
+
+            <!-- Grid Section -->
+            <div class="table-container">
+                <table id="gmp-table">
+                    <thead>
+                        <tr>
+                            <th>BOTON</th>
+                            <th>Brinco</th>
+                            <th>Raça</th>
+                            <th>Data</th>
+                            <th>Peso (kg)</th>
+                            <th>GMP (kg)</th>
+                            <th>GMD (kg/dia)</th>
+                            <th>Fazenda</th>
+                            <th>Pasto</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: #666; font-size: 0.9rem;">Registros por página:</span>
+                    <select id="page-size">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                    </select>
+                    <span id="page-info" style="color: #666; font-size: 0.9rem;"></span>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="first-page" class="pagination-btn">««</button>
+                    <button id="prev-page" class="pagination-btn">‹ Anterior</button>
+                    <button id="next-page" class="pagination-btn">Próxima ›</button>
+                    <button id="last-page" class="pagination-btn">»»</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let pageSize = 10;
+
+        // Initialize
+        async function init() {
+            await loadAutocompleteData();
+            await loadData();
+        }
+
+        // Load autocomplete data
+        async function loadAutocompleteData() {
+            try {
+                const res = await fetch('/api/gmp/autocomplete');
+                const data = await res.json();
+                
+                document.getElementById('boton-list').innerHTML = data.boton.map(v => `<option value="${v}">`).join('');
+                document.getElementById('brinco-list').innerHTML = data.brinco.map(v => `<option value="${v}">`).join('');
+                document.getElementById('vendedor-list').innerHTML = data.vendedor.map(v => `<option value="${v}">`).join('');
+                document.getElementById('vendedor-list-2').innerHTML = data.vendedor.map(v => `<option value="${v}">`).join('');
+                document.getElementById('local-list').innerHTML = data.local_compra.map(v => `<option value="${v}">`).join('');
+            } catch (err) {
+                console.error('Error loading autocomplete data:', err);
+            }
+        }
+
+        // Load data with filters
+        async function loadData() {
+            const params = new URLSearchParams();
+            
+            const boton = document.getElementById('filter-boton').value;
+            const brinco = document.getElementById('filter-brinco').value;
+            const raca = document.getElementById('filter-raca').value;
+            const data = document.getElementById('filter-data').value;
+            const vendedor = document.getElementById('filter-vendedor').value;
+            const nomeVendedor = document.getElementById('filter-nome-vendedor').value;
+            const local = document.getElementById('filter-local').value;
+            
+            if (boton) params.append('boton', boton);
+            if (brinco) params.append('brinco', brinco);
+            if (raca) params.append('raca', raca);
+            if (data) params.append('data_chegada', data);
+            if (vendedor) params.append('vendedor', vendedor);
+            if (nomeVendedor) params.append('nome_vendedor', nomeVendedor);
+            if (local) params.append('local_compra', local);
+            
+            try {
+                const res = await fetch(`/api/gmp/history?${params.toString()}`);
+                allData = await res.json();
+                filteredData = allData;
+                
+                updateChart();
+                renderPage();
+            } catch (err) {
+                console.error('Error loading data:', err);
+            }
+        }
+
+        // Apply filters
+        function applyFilters() {
+            currentPage = 1;
+            loadData();
+        }
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filter-boton').value = '';
+            document.getElementById('filter-brinco').value = '';
+            document.getElementById('filter-raca').value = '';
+            document.getElementById('filter-data').value = '';
+            document.getElementById('filter-vendedor').value = '';
+            document.getElementById('filter-nome-vendedor').value = '';
+            document.getElementById('filter-local').value = '';
+            currentPage = 1;
+            loadData();
+        }
+
+        // Update chart
+        function updateChart() {
+            const ctx = document.getElementById('weightChart');
+            
+            // Destroy existing chart instance if it exists
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+
+            // Prepare data for chart - combine all cattle history
+            const allHistory = [];
+            filteredData.forEach(boi => {
+                boi.history.forEach(entry => {
+                    allHistory.push({
+                        ...entry,
+                        boton: boi.name,
+                        brinco: boi.brinco
+                    });
+                });
+            });
+
+            // Sort by date
+            allHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Create datasets per cattle
+            const datasets = [];
+            const colors = [
+                'rgba(25, 118, 210, 1)',
+                'rgba(106, 168, 79, 1)',
+                'rgba(230, 74, 25, 1)',
+                'rgba(171, 71, 188, 1)',
+                'rgba(255, 152, 0, 1)',
+                'rgba(0, 150, 136, 1)'
+            ];
+
+            filteredData.forEach((boi, index) => {
+                if (boi.history && boi.history.length > 0) {
+                    const color = colors[index % colors.length];
+                    datasets.push({
+                        label: `${boi.name}${boi.brinco ? ' (' + boi.brinco + ')' : ''}`,
+                        data: boi.history.map(h => ({ x: h.date, y: h.weight })),
+                        borderColor: color,
+                        backgroundColor: color.replace('1)', '0.1)'),
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: false
+                    });
+                }
+            });
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'dd/MM/yyyy'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Data'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Peso (kg)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} kg`;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render page with pagination
+        function renderPage() {
+            // Flatten all history for grid display
+            const gridData = [];
+            filteredData.forEach(boi => {
+                boi.history.forEach(entry => {
+                    gridData.push({
+                        boton: boi.name,
+                        brinco: boi.brinco,
+                        raca: boi.raca,
+                        date: entry.date,
+                        weight: entry.weight,
+                        weight_gain: entry.weight_gain,
+                        gmd: boi.gmd,
+                        fazenda: entry.fazenda,
+                        pasto: entry.pasto
+                    });
+                });
+            });
+
+            const totalRecords = gridData.length;
+            const totalPages = Math.ceil(totalRecords / pageSize);
+            
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = gridData.slice(startIndex, endIndex);
+            
+            // Render table
+            const tbody = document.querySelector('#gmp-table tbody');
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Nenhum registro encontrado</td></tr>';
+            } else {
+                tbody.innerHTML = pageData.map(row => {
+                    let gainClass = '';
+                    let gainText = '-';
+                    if (row.weight_gain !== 0) {
+                        gainClass = row.weight_gain > 0 ? 'weight-gain-positive' : 'weight-gain-negative';
+                        gainText = row.weight_gain > 0 ? `+${row.weight_gain.toFixed(2)}` : row.weight_gain.toFixed(2);
+                    }
+                    
+                    // Format GMD
+                    let gmdText = '-';
+                    if (row.gmd !== null && row.gmd !== undefined) {
+                        gmdText = row.gmd.toFixed(3);
+                    }
+                    
+                    const boi = filteredData.find(b => b.name === row.boton);
+                    let statusIcon = '';
+                    if (boi && boi.baixa_status) {
+                        const statusClass = boi.baixa_status === 'Vendido' ? 'status-vendido' : 'status-morreu';
+                        statusIcon = `<div class="tooltip"><span class="status-dot ${statusClass}"></span><span class="tooltiptext">${boi.baixa_status}</span></div>`;
+                    }
+                    
+                    return `
+                        <tr>
+                            <td style="display:flex; align-items:center;">${statusIcon}${row.boton || '-'}</td>
+                            <td>${row.brinco || '-'}</td>
+                            <td>${row.raca || '-'}</td>
+                            <td>${formatDate(row.date)}</td>
+                            <td>${row.weight.toFixed(2)}</td>
+                            <td class="${gainClass}">${gainText}</td>
+                            <td>${gmdText}</td>
+                            <td>${row.fazenda || '-'}</td>
+                            <td>${row.pasto || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            
+            // Update pagination info
+            const pageInfo = document.getElementById('page-info');
+            if (totalRecords === 0) {
+                pageInfo.textContent = 'Nenhum registro encontrado';
+            } else {
+                pageInfo.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${totalRecords} registros`;
+            }
+            
+            // Update button states
+            document.getElementById('first-page').disabled = currentPage === 1;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages || totalRecords === 0;
+            document.getElementById('last-page').disabled = currentPage === totalPages || totalRecords === 0;
+        }
+
+        // Pagination event listeners
+        document.getElementById('page-size').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('first-page').addEventListener('click', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const gridData = [];
+            filteredData.forEach(boi => {
+                boi.history.forEach(entry => {
+                    gridData.push(entry);
+                });
+            });
+            const totalPages = Math.ceil(gridData.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage();
+            }
+        });
+
+        document.getElementById('last-page').addEventListener('click', () => {
+            const gridData = [];
+            filteredData.forEach(boi => {
+                boi.history.forEach(entry => {
+                    gridData.push(entry);
+                });
+            });
+            const totalPages = Math.ceil(gridData.length / pageSize);
+            currentPage = totalPages;
+            renderPage();
+        });
+
+        // Format date
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        // Export to PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            // Generate timestamp: ddmmyyyyhhmmss
+            const now = new Date();
+            const timestamp = String(now.getDate()).padStart(2, '0') +
+                             String(now.getMonth() + 1).padStart(2, '0') +
+                             now.getFullYear() +
+                             String(now.getHours()).padStart(2, '0') +
+                             String(now.getMinutes()).padStart(2, '0') +
+                             String(now.getSeconds()).padStart(2, '0');
+            
+            // Title
+            doc.setFontSize(16);
+            doc.text('Histórico G.M.P - Ganho Médio de Peso', 14, 15);
+            
+            let yPosition = 25;
+            
+            // Add chart as image
+            if (chartInstance) {
+                const chartImage = chartInstance.toBase64Image();
+                doc.addImage(chartImage, 'PNG', 14, yPosition, 270, 80);
+                yPosition += 90;
+            }
+            
+            // Prepare table data
+            const gridData = [];
+            filteredData.forEach(boi => {
+                boi.history.forEach(entry => {
+                    gridData.push([
+                        boi.name || '-',
+                        boi.brinco || '-',
+                        boi.raca || '-',
+                        formatDate(entry.date),
+                        entry.weight.toFixed(2),
+                        entry.weight_gain !== 0 ? (entry.weight_gain > 0 ? '+' : '') + entry.weight_gain.toFixed(2) : '-',
+                        boi.gmd !== null && boi.gmd !== undefined ? boi.gmd.toFixed(3) : '-',
+                        entry.fazenda || '-',
+                        entry.pasto || '-'
+                    ]);
+                });
+            });
+            
+            // Generate table
+            doc.autoTable({
+                head: [['BOTON', 'Brinco', 'Raça', 'Data', 'Peso (kg)', 'GMP (kg)', 'GMD (kg/dia)', 'Fazenda', 'Pasto']],
+                body: gridData,
+                startY: yPosition,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [41, 128, 185] }
+            });
+            
+            // Save with timestamp filename
+            doc.save(`GMD_${timestamp}.pdf`);
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>
