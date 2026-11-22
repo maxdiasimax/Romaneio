@@ -2,8 +2,9 @@
   "name": "romaneio",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -19,6 +20,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.16.1",
     "node": "^25.3.0",
+    "pg": "^8.23.1",
     "sqlite3": "^5.1.7"
   }
 }

@@ -1,13 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const db = require('./database-mysql');
+const db = require('./database-pg');
 const bcrypt = require('bcrypt');
 const path = require('path');
 
 const app = express();
 //app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -645,10 +645,10 @@ app.get('/api/dashboard/financial', async (req, res) => {
     try {
         const sql = `
             SELECT 
-                COUNT(*) as activeCattleCount,
-                SUM(valor_boi) as totalBoi,
-                SUM(valor_comissao) as totalComissao,
-                SUM(valor_frete) as totalFrete
+                COUNT(*) as "activeCattleCount",
+                SUM(valor_boi) as "totalBoi",
+                SUM(valor_comissao) as "totalComissao",
+                SUM(valor_frete) as "totalFrete"
             FROM bois
             WHERE baixa_id IS NULL
         `;
@@ -1449,9 +1449,9 @@ app.get('/api/pastos/:id/count', (req, res) => {
                 WHERE m2.boi_id = m1.boi_id
             )
             AND pasto_id = ?
-        )
+        ) AS ultimos
     `;
-    
+
     db.get(sql, [pastoId], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ count: row ? row.count : 0 });
@@ -1524,7 +1524,7 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
 
     // Query: Get Total Consumption in this range
     const dietSql = `
-        SELECT SUM(qtd_kg) as totalKg
+        SELECT SUM(qtd_kg) as "totalKg"
         FROM dietas 
         WHERE pasto_id = ? AND data >= ? AND data <= ?
     `;
@@ -1549,7 +1549,7 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
                     WHERE m2.boi_id = m1.boi_id
                 )
                 AND pasto_id = ?
-            )
+            ) AS ultimos
         `;
         
         db.get(countSql, [pasto_id], (err, cRow) => {
