@@ -75,16 +75,43 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 // --- AUTH ---
+// MULTI-TENANT: a empresa (tenant) do usuário NUNCA vem do corpo/URL/cabeçalhos da requisição.
+// Ela é lida do banco a partir do id do usuário contido no token assinado (JWT). Assim,
+// perfil, empresa e suspensão de empresa valem imediatamente, sem esperar o token expirar.
+// Todas as consultas das rotas devem filtrar por req.tenantId.
 function requireAuth(req, res, next) {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Não autenticado.' });
+    let payload;
     try {
-        req.user = jwt.verify(token, JWT_SECRET);
-        next();
+        payload = jwt.verify(token, JWT_SECRET);
     } catch (e) {
         return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
     }
+    // Tokens antigos (sem tid) são recusados: o usuário precisa logar de novo.
+    if (!payload || !payload.id || !payload.tid) {
+        return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+    }
+    db.get(
+        `SELECT u.id, u.name, u.profile, u.tenant_id, t.name AS tenant_name, t.active AS tenant_active
+         FROM users u JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.id = ?`,
+        [payload.id],
+        (err, row) => {
+            if (err) return sendError(res, err);
+            if (!row || String(row.tenant_id) !== String(payload.tid)) {
+                return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+            }
+            if (!row.tenant_active) {
+                return res.status(403).json({ error: 'Conta da empresa suspensa. Entre em contato com o suporte.' });
+            }
+            req.user = { id: row.id, name: row.name, profile: row.profile };
+            req.tenantId = row.tenant_id;
+            req.tenantName = row.tenant_name;
+            next();
+        }
+    );
 }
 function requireAdmin(req, res, next) {
     if (!req.user || req.user.profile !== 'Admin') {
@@ -100,7 +127,9 @@ app.post('/api/login', loginLimiter, (req, res) => {
     if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
         return res.status(400).json({ error: 'Informe usuário e senha.' });
     }
-    db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+    db.get(`SELECT u.*, t.name AS tenant_name, t.active AS tenant_active
+            FROM users u JOIN tenants t ON t.id = u.tenant_id
+            WHERE u.username = ?`, [username], async (err, user) => {
         if (err) return sendError(res, err);
         // Mensagem genérica: não revela se o usuário existe
         const invalid = () => res.status(401).json({ error: 'Usuário ou senha inválidos.' });
@@ -111,16 +140,21 @@ app.post('/api/login', loginLimiter, (req, res) => {
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return invalid();
 
+        // Só informa a suspensão depois de validar a senha (não revela contas a terceiros)
+        if (!user.tenant_active) {
+            return res.status(403).json({ error: 'Conta da empresa suspensa. Entre em contato com o suporte.' });
+        }
+
         loginAttempts.delete(req.ip);
-        const payload = { id: user.id, name: user.name, profile: user.profile };
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_TTL });
-        res.json({ message: "Login successful", token, user: payload });
+        // tid = empresa do usuário; é conferido contra o banco a cada requisição (requireAuth)
+        const token = jwt.sign({ id: user.id, tid: user.tenant_id, name: user.name, profile: user.profile }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+        res.json({ message: "Login successful", token, user: { id: user.id, name: user.name, profile: user.profile, tenant: user.tenant_name } });
     });
 });
 
 // Retorna o usuário da sessão atual (usado pelo front para validar o token)
 app.get('/api/me', requireAuth, (req, res) => {
-    res.json({ id: req.user.id, name: req.user.name, profile: req.user.profile });
+    res.json({ id: req.user.id, name: req.user.name, profile: req.user.profile, tenant: req.tenantName });
 });
 
 // A partir daqui, TODA a API exige autenticação
@@ -157,7 +191,7 @@ function validateUserBody(body, { requirePassword }) {
 }
 
 app.get('/api/users', requireAdmin, (req, res) => {
-    db.all("SELECT id, name, username, celular, profile FROM users ORDER BY name", [], (err, rows) => {
+    db.all("SELECT id, name, username, celular, profile FROM users WHERE tenant_id = ? ORDER BY name", [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -169,8 +203,8 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     const { name, username, password, celular, profile } = req.body;
     const hash = await bcrypt.hash(password, 10);
 
-    db.run("INSERT INTO users (name, username, password, celular, profile) VALUES (?, ?, ?, ?, ?)",
-        [name.trim(), username.trim(), hash, celular || null, profile],
+    db.run("INSERT INTO users (tenant_id, name, username, password, celular, profile) VALUES (?, ?, ?, ?, ?, ?)",
+        [req.tenantId, name.trim(), username.trim(), hash, celular || null, profile],
         function(err) {
             if (err) return sendError(res, err);
             res.json({ id: this.lastID });
@@ -190,16 +224,16 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 
     if (password && password.trim() !== '') {
         const hash = await bcrypt.hash(password, 10);
-        db.run("UPDATE users SET name = ?, username = ?, password = ?, celular = ?, profile = ? WHERE id = ?",
-            [name.trim(), username.trim(), hash, celular || null, profile, req.params.id],
+        db.run("UPDATE users SET name = ?, username = ?, password = ?, celular = ?, profile = ? WHERE id = ? AND tenant_id = ?",
+            [name.trim(), username.trim(), hash, celular || null, profile, req.params.id, req.tenantId],
             function(err) {
                 if (err) return sendError(res, err);
                 res.json({ changes: this.changes });
             }
         );
     } else {
-        db.run("UPDATE users SET name = ?, username = ?, celular = ?, profile = ? WHERE id = ?",
-            [name.trim(), username.trim(), celular || null, profile, req.params.id],
+        db.run("UPDATE users SET name = ?, username = ?, celular = ?, profile = ? WHERE id = ? AND tenant_id = ?",
+            [name.trim(), username.trim(), celular || null, profile, req.params.id, req.tenantId],
             function(err) {
                 if (err) return sendError(res, err);
                 res.json({ changes: this.changes });
@@ -212,7 +246,7 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
     if (String(req.params.id) === String(req.user.id)) {
         return res.status(400).json({ error: 'Você não pode excluir o seu próprio usuário.' });
     }
-    db.run("DELETE FROM users WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM users WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -221,7 +255,7 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
 // --- FAZENDAS ---
 
 app.get('/api/fazendas', (req, res) => {
-    db.all("SELECT * FROM fazendas", [], (err, rows) => {
+    db.all("SELECT * FROM fazendas WHERE tenant_id = ?", [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -229,7 +263,7 @@ app.get('/api/fazendas', (req, res) => {
 
 app.post('/api/fazendas', (req, res) => {
     const { name, address } = req.body;
-    db.run("INSERT INTO fazendas (name, address) VALUES (?, ?)", [name, address], function(err) {
+    db.run("INSERT INTO fazendas (tenant_id, name, address) VALUES (?, ?, ?)", [req.tenantId, name, address], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
@@ -237,14 +271,14 @@ app.post('/api/fazendas', (req, res) => {
 
 app.put('/api/fazendas/:id', (req, res) => {
     const { name, address } = req.body;
-    db.run("UPDATE fazendas SET name = ?, address = ? WHERE id = ?", [name, address, req.params.id], function(err) {
+    db.run("UPDATE fazendas SET name = ?, address = ? WHERE id = ? AND tenant_id = ?", [name, address, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
 
 app.delete('/api/fazendas/:id', (req, res) => {
-    db.run("DELETE FROM fazendas WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM fazendas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -253,15 +287,15 @@ app.delete('/api/fazendas/:id', (req, res) => {
 // --- PASTOS ---
 
 app.get('/api/pastos', (req, res) => {
-    const sql = `SELECT p.*, f.name as fazenda_name FROM pastos p LEFT JOIN fazendas f ON p.fazenda_id = f.id ORDER BY p.id DESC`;
-    db.all(sql, [], (err, rows) => {
+    const sql = `SELECT p.*, f.name as fazenda_name FROM pastos p LEFT JOIN fazendas f ON p.fazenda_id = f.id AND f.tenant_id = p.tenant_id WHERE p.tenant_id = ? ORDER BY p.id DESC`;
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
 });
 
 app.get('/api/pastos/fazenda/:id', (req, res) => {
-    db.all("SELECT * FROM pastos WHERE fazenda_id = ?", [req.params.id], (err, rows) => {
+    db.all("SELECT * FROM pastos WHERE fazenda_id = ? AND tenant_id = ?", [req.params.id, req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -269,7 +303,7 @@ app.get('/api/pastos/fazenda/:id', (req, res) => {
 
 app.post('/api/pastos', (req, res) => {
     const { name, fazenda_id } = req.body;
-    db.run("INSERT INTO pastos (name, fazenda_id) VALUES (?, ?)", [name, fazenda_id], function(err) {
+    db.run("INSERT INTO pastos (tenant_id, name, fazenda_id) VALUES (?, ?, ?)", [req.tenantId, name, fazenda_id], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
@@ -277,7 +311,7 @@ app.post('/api/pastos', (req, res) => {
 
 app.put('/api/pastos/:id', (req, res) => {
     const { name, fazenda_id } = req.body;
-    db.run("UPDATE pastos SET name = ?, fazenda_id = ? WHERE id = ?", [name, fazenda_id, req.params.id], function(err) {
+    db.run("UPDATE pastos SET name = ?, fazenda_id = ? WHERE id = ? AND tenant_id = ?", [name, fazenda_id, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -285,7 +319,7 @@ app.put('/api/pastos/:id', (req, res) => {
 
 app.delete('/api/pastos/:id', (req, res) => {
     console.log(`Deleting pasto ${req.params.id}`);
-    db.run("DELETE FROM pastos WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM pastos WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         if (this.changes === 0) return res.status(404).json({ error: "Pasto not found" });
         res.json({ changes: this.changes });
@@ -295,7 +329,7 @@ app.delete('/api/pastos/:id', (req, res) => {
 // --- BOIS ---
 
 // Valida pai/mãe: sem auto-parentesco, sexo coerente e sem ciclos na árvore.
-function validateParents(boiId, paiId, maeId, sexo, cb) {
+function validateParents(tenantId, boiId, paiId, maeId, sexo, cb) {
     paiId = paiId ? parseInt(paiId) : null;
     maeId = maeId ? parseInt(maeId) : null;
     boiId = boiId ? parseInt(boiId) : null;
@@ -303,7 +337,7 @@ function validateParents(boiId, paiId, maeId, sexo, cb) {
     if (boiId && (paiId === boiId || maeId === boiId)) return cb('Um animal não pode ser pai ou mãe de si mesmo.');
     if (paiId && maeId && paiId === maeId) return cb('Pai e mãe não podem ser o mesmo animal.');
 
-    db.all("SELECT id, pai_id, mae_id, sexo FROM bois", [], (err, rows) => {
+    db.all("SELECT id, pai_id, mae_id, sexo FROM bois WHERE tenant_id = ?", [tenantId], (err, rows) => {
         if (err) return cb(null, err);
         const map = new Map(rows.map(r => [parseInt(r.id), r]));
         if (paiId) {
@@ -328,7 +362,7 @@ function validateParents(boiId, paiId, maeId, sexo, cb) {
 }
 
 app.get('/api/bois', (req, res) => {
-    db.all("SELECT * FROM bois ORDER BY id DESC", [], (err, rows) => {
+    db.all("SELECT * FROM bois WHERE tenant_id = ? ORDER BY id DESC", [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -336,7 +370,7 @@ app.get('/api/bois', (req, res) => {
 
 app.post('/api/bois', (req, res) => {
     if (!req.body || !req.body.name || !String(req.body.name).trim()) return res.status(400).json({ error: 'Informe o nome/botom do animal.' });
-    validateParents(null, req.body.pai_id, req.body.mae_id, req.body.sexo, (msg, e) => {
+    validateParents(req.tenantId, null, req.body.pai_id, req.body.mae_id, req.body.sexo, (msg, e) => {
         if (e) return sendError(res, e);
         if (msg) return res.status(400).json({ error: msg });
         insertBoi(req, res);
@@ -353,8 +387,8 @@ function insertBoi(req, res) {
         valor_por_kg = totalValue / parseFloat(initial_weight);
     }
     
-    db.run("INSERT INTO bois (name, initial_weight, arrival_date, brinco, vendedor, local_compra, valor_boi, valor_comissao, valor_frete, valor_por_kg, raca, pai_id, mae_id, sexo, geracao, data_nascimento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-        [name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null], 
+    db.run("INSERT INTO bois (tenant_id, name, initial_weight, arrival_date, brinco, vendedor, local_compra, valor_boi, valor_comissao, valor_frete, valor_por_kg, raca, pai_id, mae_id, sexo, geracao, data_nascimento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+        [req.tenantId, name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null], 
         function(err) {
             if (err) return sendError(res, err);
             res.json({ id: this.lastID });
@@ -367,7 +401,7 @@ const BOI_FIELDS = ['name', 'initial_weight', 'arrival_date', 'brinco', 'vendedo
 app.put('/api/bois/:id', (req, res) => {
     // Campos ausentes no corpo preservam o valor atual (ex.: tela Bovinos não envia pai/mãe/sexo
     // e antes disso apagava a genealogia ao editar).
-    db.get("SELECT * FROM bois WHERE id = ?", [req.params.id], (e0, existing) => {
+    db.get("SELECT * FROM bois WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], (e0, existing) => {
         if (e0) return sendError(res, e0);
         if (!existing) return res.status(404).json({ error: 'Animal não encontrado.' });
 
@@ -376,7 +410,7 @@ app.put('/api/bois/:id', (req, res) => {
         req.body = merged;
 
         if (!merged.name || !String(merged.name).trim()) return res.status(400).json({ error: 'Informe o nome/botom do animal.' });
-        validateParents(req.params.id, merged.pai_id, merged.mae_id, merged.sexo, (msg, e) => {
+        validateParents(req.tenantId, req.params.id, merged.pai_id, merged.mae_id, merged.sexo, (msg, e) => {
             if (e) return sendError(res, e);
             if (msg) return res.status(400).json({ error: msg });
             updateBoi(req, res);
@@ -394,8 +428,8 @@ function updateBoi(req, res) {
         valor_por_kg = totalValue / parseFloat(initial_weight);
     }
     
-    db.run("UPDATE bois SET name = ?, initial_weight = ?, arrival_date = ?, brinco = ?, vendedor = ?, local_compra = ?, valor_boi = ?, valor_comissao = ?, valor_frete = ?, valor_por_kg = ?, raca = ?, pai_id = ?, mae_id = ?, sexo = ?, geracao = ?, data_nascimento = ? WHERE id = ?", 
-        [name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null, req.params.id], 
+    db.run("UPDATE bois SET name = ?, initial_weight = ?, arrival_date = ?, brinco = ?, vendedor = ?, local_compra = ?, valor_boi = ?, valor_comissao = ?, valor_frete = ?, valor_por_kg = ?, raca = ?, pai_id = ?, mae_id = ?, sexo = ?, geracao = ?, data_nascimento = ? WHERE id = ? AND tenant_id = ?", 
+        [name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null, req.params.id, req.tenantId], 
         function(err) {
             if (err) return sendError(res, err);
             res.json({ changes: this.changes });
@@ -404,7 +438,7 @@ function updateBoi(req, res) {
 }
 
 app.delete('/api/bois/:id', (req, res) => {
-    db.run("DELETE FROM bois WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM bois WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -414,10 +448,10 @@ app.get('/api/bois/:id/last-manejo', (req, res) => {
     const sql = `
         SELECT fazenda_id, pasto_id, initial_weight_manejo 
         FROM manejo_pasto 
-        WHERE boi_id = ? 
+        WHERE boi_id = ? AND tenant_id = ?
         ORDER BY id DESC LIMIT 1
     `;
-    db.get(sql, [req.params.id], (err, row) => {
+    db.get(sql, [req.params.id, req.tenantId], (err, row) => {
         if (err) return sendError(res, err);
         res.json(row || null);
     });
@@ -438,10 +472,10 @@ app.get('/api/manejo', (req, res) => {
         LEFT JOIN bois b ON m.boi_id = b.id
         LEFT JOIN pastos p ON m.pasto_id = p.id
         LEFT JOIN fazendas f ON m.fazenda_id = f.id
-        WHERE 1=1
+        WHERE m.tenant_id = ?
     `;
     
-    const params = [];
+    const params = [req.tenantId];
 
     // Add Filters
     if (boi_name) {
@@ -501,9 +535,9 @@ app.get('/api/manejo', (req, res) => {
                 SELECT COUNT(*) as count 
                 FROM manejo_pasto m
                 LEFT JOIN bois b ON m.boi_id = b.id
-                WHERE 1=1
+                WHERE m.tenant_id = ?
             `;
-            const countParams = [];
+            const countParams = [req.tenantId];
             if (boi_name) { countSql += ` AND b.name LIKE ?`; countParams.push(`%${boi_name}%`); }
             if (fazenda_id) { countSql += ` AND m.fazenda_id = ?`; countParams.push(fazenda_id); }
             if (pasto_id) { countSql += ` AND m.pasto_id = ?`; countParams.push(pasto_id); }
@@ -532,11 +566,11 @@ app.get('/api/manejo/history', (req, res) => {
 
     const sql = `
         SELECT * FROM manejo_pasto 
-        WHERE boi_id = ? AND fazenda_id = ? AND pasto_id = ?
+        WHERE boi_id = ? AND fazenda_id = ? AND pasto_id = ? AND tenant_id = ?
         ORDER BY id DESC LIMIT 1
     `;
     
-    db.get(sql, [boi_id, fazenda_id, pasto_id], (err, row) => {
+    db.get(sql, [boi_id, fazenda_id, pasto_id, req.tenantId], (err, row) => {
         if (err) return sendError(res, err);
         if (!row) return res.json(null); // No history found
         res.json(row);
@@ -547,17 +581,18 @@ app.get('/api/manejo/bois-distinct', (req, res) => {
     const sql = `
         SELECT id, name, baixa_status
         FROM bois
+        WHERE tenant_id = ?
         ORDER BY name
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
 });
 
 app.get('/api/manejo/:id', (req, res) => {
-    const sql = `SELECT * FROM manejo_pasto WHERE id = ?`;
-    db.get(sql, [req.params.id], (err, row) => {
+    const sql = `SELECT * FROM manejo_pasto WHERE id = ? AND tenant_id = ?`;
+    db.get(sql, [req.params.id, req.tenantId], (err, row) => {
         if (err) return sendError(res, err);
         if (!row) return res.status(404).json({ error: "Manejo not found" });
         res.json(row);
@@ -568,7 +603,7 @@ app.post('/api/manejo', (req, res) => {
     const { boi_id, pasto_id, fazenda_id, initial_weight_manejo, weights } = req.body;
     
     const params = [
-        boi_id, pasto_id, fazenda_id, initial_weight_manejo,
+        req.tenantId, boi_id, pasto_id, fazenda_id, initial_weight_manejo,
         req.body.weight_01 || null, req.body.date_weight_01 || null,
         req.body.weight_02 || null, req.body.date_weight_02 || null,
         req.body.weight_03 || null, req.body.date_weight_03 || null,
@@ -584,7 +619,7 @@ app.post('/api/manejo', (req, res) => {
     ];
 
     const sql = `INSERT INTO manejo_pasto (
-        boi_id, pasto_id, fazenda_id, initial_weight_manejo,
+        tenant_id, boi_id, pasto_id, fazenda_id, initial_weight_manejo,
         weight_01, date_weight_01,
         weight_02, date_weight_02,
         weight_03, date_weight_03,
@@ -596,7 +631,7 @@ app.post('/api/manejo', (req, res) => {
         weight_09, date_weight_09,
         weight_10, date_weight_10,
         total_weight_registered, weights_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(sql, params, function(err) {
         if (err) return sendError(res, err);
@@ -621,7 +656,7 @@ app.put('/api/manejo/:id', (req, res) => {
         req.body.weight_10 || null, req.body.date_weight_10 || null,
         req.body.total_weight_registered || 0,
         req.body.weights_count || 0,
-        req.params.id
+        req.params.id, req.tenantId
     ];
 
     const sql = `UPDATE manejo_pasto SET
@@ -637,7 +672,7 @@ app.put('/api/manejo/:id', (req, res) => {
         weight_09 = ?, date_weight_09 = ?,
         weight_10 = ?, date_weight_10 = ?,
         total_weight_registered = ?, weights_count = ?
-        WHERE id = ?`;
+        WHERE id = ? AND tenant_id = ?`;
 
     db.run(sql, params, function(err) {
         if (err) return sendError(res, err);
@@ -646,7 +681,7 @@ app.put('/api/manejo/:id', (req, res) => {
 });
 
 app.delete('/api/manejo/:id', (req, res) => {
-    db.run("DELETE FROM manejo_pasto WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM manejo_pasto WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -660,14 +695,14 @@ app.get('/api/manejo/history-all/:id', (req, res) => {
                b.initial_weight as boi_initial_weight, b.arrival_date as boi_arrival_date,
                b.local_compra, b.vendedor
         FROM bois b
-        LEFT JOIN manejo_pasto m ON m.boi_id = b.id
+        LEFT JOIN manejo_pasto m ON m.boi_id = b.id AND m.tenant_id = b.tenant_id
         LEFT JOIN fazendas f ON m.fazenda_id = f.id
         LEFT JOIN pastos p ON m.pasto_id = p.id
-        WHERE b.id = ?
+        WHERE b.id = ? AND b.tenant_id = ?
         ORDER BY m.id ASC
     `;
     
-    db.all(sql, [req.params.id], (err, rows) => {
+    db.all(sql, [req.params.id, req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         let history = [];
@@ -768,7 +803,8 @@ app.get('/api/manejo/history-all/:id', (req, res) => {
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
         const getCount = (table) => new Promise((resolve, reject) => {
-            db.get(`SELECT COUNT(*) as count FROM ${table}`, (err, row) => {
+            // `table` é sempre uma constante literal abaixo (nunca vem da requisição)
+            db.get(`SELECT COUNT(*) as count FROM ${table} WHERE tenant_id = ?`, [req.tenantId], (err, row) => {
                 if(err) reject(err); else resolve(row.count);
             });
         });
@@ -800,9 +836,10 @@ app.get('/api/dashboard/report/bois-fazenda', (req, res) => {
         SELECT f.name as fazenda, COUNT(DISTINCT m.boi_id) as qtd_bois
         FROM manejo_pasto m
         JOIN fazendas f ON m.fazenda_id = f.id
+        WHERE m.tenant_id = ?
         GROUP BY f.id
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if(err) return sendError(res, err);
         res.json(rows);
     });
@@ -813,9 +850,10 @@ app.get('/api/dashboard/report/bois-pasto', (req, res) => {
         SELECT p.name as pasto, COUNT(DISTINCT m.boi_id) as qtd_bois
         FROM manejo_pasto m
         JOIN pastos p ON m.pasto_id = p.id
+        WHERE m.tenant_id = ?
         GROUP BY p.id
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if(err) return sendError(res, err);
         res.json(rows);
     });
@@ -830,10 +868,10 @@ app.get('/api/dashboard/financial', async (req, res) => {
                 SUM(valor_comissao) as "totalComissao",
                 SUM(valor_frete) as "totalFrete"
             FROM bois
-            WHERE baixa_id IS NULL
+            WHERE baixa_id IS NULL AND tenant_id = ?
         `;
         
-        db.get(sql, [], (err, row) => {
+        db.get(sql, [req.tenantId], (err, row) => {
             if (err) return sendError(res, err);
             
             const totalInvested = (row.totalBoi || 0) + (row.totalComissao || 0) + (row.totalFrete || 0);
@@ -866,10 +904,10 @@ app.get('/api/dashboard/weight-stats', (req, res) => {
                (SELECT weight_01 FROM manejo_pasto m WHERE m.boi_id = b.id ORDER BY m.id DESC LIMIT 1) as w01,
                (SELECT initial_weight_manejo FROM manejo_pasto m WHERE m.boi_id = b.id ORDER BY m.id DESC LIMIT 1) as w_init_manejo
         FROM bois b
-        WHERE b.baixa_id IS NULL
+        WHERE b.baixa_id IS NULL AND b.tenant_id = ?
     `;
 
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
 
         let totalGMD = 0;
@@ -939,9 +977,10 @@ app.get('/api/dashboard/baixas-stats', (req, res) => {
     const sql = `
         SELECT status, COUNT(*) as count 
         FROM baixas 
+        WHERE tenant_id = ?
         GROUP BY status
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -957,10 +996,10 @@ app.get('/api/gmp/autocomplete', (req, res) => {
             vendedor,
             local_compra
         FROM bois
-        WHERE name IS NOT NULL OR brinco IS NOT NULL OR vendedor IS NOT NULL OR local_compra IS NOT NULL
+        WHERE tenant_id = ? AND (name IS NOT NULL OR brinco IS NOT NULL OR vendedor IS NOT NULL OR local_compra IS NOT NULL)
     `;
     
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         // Extract unique values for each field
@@ -988,9 +1027,9 @@ app.get('/api/gmp/autocomplete', (req, res) => {
 app.get('/api/gmp/history', (req, res) => {
     const { boton, brinco, raca, data_chegada, vendedor, nome_vendedor, local_compra } = req.query;
     
-    // Build WHERE clause based on filters
-    let whereClauses = [];
-    let params = [];
+    // Build WHERE clause based on filters (o filtro de empresa é sempre o primeiro)
+    let whereClauses = ['b.tenant_id = ?'];
+    let params = [req.tenantId];
     
     if (boton) {
         whereClauses.push('b.name LIKE ?');
@@ -1028,7 +1067,7 @@ app.get('/api/gmp/history', (req, res) => {
                b.name as boi_name,
                b.id as boi_id_main
         FROM bois b
-        LEFT JOIN manejo_pasto m ON b.id = m.boi_id
+        LEFT JOIN manejo_pasto m ON b.id = m.boi_id AND m.tenant_id = b.tenant_id
         LEFT JOIN fazendas f ON m.fazenda_id = f.id
         LEFT JOIN pastos p ON m.pasto_id = p.id
         ${whereClause}
@@ -1137,8 +1176,8 @@ app.get('/api/gmp/history', (req, res) => {
 app.get('/api/vacinas', (req, res) => {
     const { chip, brinco, vacina, data, boton } = req.query;
     
-    let whereClauses = [];
-    let params = [];
+    let whereClauses = ['v.tenant_id = ?'];
+    let params = [req.tenantId];
     
     if (boton) {
         whereClauses.push('b.name LIKE ?');
@@ -1181,10 +1220,10 @@ app.get('/api/vacinas', (req, res) => {
 app.post('/api/vacinas', (req, res) => {
     const { boi_id, chip, brinco, vacina, data_vacina } = req.body;
     
-    const sql = `INSERT INTO vacinas (boi_id, chip, brinco, vacina, data_vacina) 
-                 VALUES (?, ?, ?, ?, ?)`;
-    
-    db.run(sql, [boi_id, chip || null, brinco || null, vacina, data_vacina], function(err) {
+    const sql = `INSERT INTO vacinas (tenant_id, boi_id, chip, brinco, vacina, data_vacina)
+                 VALUES (?, ?, ?, ?, ?, ?)`;
+
+    db.run(sql, [req.tenantId, boi_id, chip || null, brinco || null, vacina, data_vacina], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
@@ -1196,9 +1235,9 @@ app.put('/api/vacinas/:id', (req, res) => {
     
     const sql = `UPDATE vacinas 
                  SET boi_id = ?, chip = ?, brinco = ?, vacina = ?, data_vacina = ?
-                 WHERE id = ?`;
-    
-    db.run(sql, [boi_id, chip || null, brinco || null, vacina, data_vacina, req.params.id], function(err) {
+                 WHERE id = ? AND tenant_id = ?`;
+
+    db.run(sql, [boi_id, chip || null, brinco || null, vacina, data_vacina, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -1206,7 +1245,7 @@ app.put('/api/vacinas/:id', (req, res) => {
 
 // Delete vaccine record
 app.delete('/api/vacinas/:id', (req, res) => {
-    db.run("DELETE FROM vacinas WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM vacinas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -1217,10 +1256,10 @@ app.get('/api/vacinas/autocomplete', (req, res) => {
     const sql = `
         SELECT DISTINCT chip, brinco, vacina
         FROM vacinas
-        WHERE chip IS NOT NULL OR brinco IS NOT NULL OR vacina IS NOT NULL
+        WHERE tenant_id = ? AND (chip IS NOT NULL OR brinco IS NOT NULL OR vacina IS NOT NULL)
     `;
-    
-    db.all(sql, [], (err, rows) => {
+
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         const chipSet = new Set();
@@ -1265,10 +1304,10 @@ app.get('/api/vacinas/pendentes/:boton', (req, res) => {
         SELECT DISTINCT v.vacina
         FROM vacinas v
         JOIN bois b ON v.boi_id = b.id
-        WHERE b.name = ?
+        WHERE b.name = ? AND v.tenant_id = ? AND b.tenant_id = ?
     `;
-    
-    db.all(sql, [boton], (err, rows) => {
+
+    db.all(sql, [boton, req.tenantId, req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         const appliedVaccines = rows.map(row => row.vacina);
@@ -1286,8 +1325,8 @@ app.get('/api/vacinas/pendentes/:boton', (req, res) => {
 app.get('/api/vacinas/chart', (req, res) => {
     const { chip, brinco, vacina, data, boton } = req.query;
     
-    let whereClauses = [];
-    let params = [];
+    let whereClauses = ['v.tenant_id = ?'];
+    let params = [req.tenantId];
     
     if (boton) {
         whereClauses.push('b.name LIKE ?');
@@ -1332,10 +1371,10 @@ app.get('/api/vacinas/chart', (req, res) => {
 // Get all baixas with filters
 app.get('/api/baixas', (req, res) => {
     const { boton, brinco, status, data_baixa } = req.query;
-    
-    let whereClauses = [];
-    let params = [];
-    
+
+    let whereClauses = ['baixas.tenant_id = ?'];
+    let params = [req.tenantId];
+
     if (boton) {
         whereClauses.push('baixas.boton LIKE ?');
         params.push(`%${boton}%`);
@@ -1372,17 +1411,17 @@ app.get('/api/baixas', (req, res) => {
 app.post('/api/baixas', (req, res) => {
     const { boi_id, boton, brinco, ultimo_peso, data_baixa, status, observacao } = req.body;
     
-    const sql = `INSERT INTO baixas (boi_id, boton, brinco, ultimo_peso, data_baixa, status, observacao) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    
-    db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null], function(err) {
+    const sql = `INSERT INTO baixas (tenant_id, boi_id, boton, brinco, ultimo_peso, data_baixa, status, observacao)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    db.run(sql, [req.tenantId, boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null], function(err) {
         if (err) return sendError(res, err);
         
         const baixaId = this.lastID;
         
         // Update bois table to mark this animal as discharged
-        const updateBoiSql = `UPDATE bois SET baixa_id = ?, baixa_status = ? WHERE id = ?`;
-        db.run(updateBoiSql, [baixaId, status, boi_id], (updateErr) => {
+        const updateBoiSql = `UPDATE bois SET baixa_id = ?, baixa_status = ? WHERE id = ? AND tenant_id = ?`;
+        db.run(updateBoiSql, [baixaId, status, boi_id, req.tenantId], (updateErr) => {
             if (updateErr) {
                 console.error('Error updating boi status:', updateErr.message);
             }
@@ -1395,28 +1434,28 @@ app.post('/api/baixas', (req, res) => {
 app.put('/api/baixas/:id', (req, res) => {
     const { boi_id, boton, brinco, ultimo_peso, data_baixa, status, observacao } = req.body;
 
-    db.get("SELECT boi_id FROM baixas WHERE id = ?", [req.params.id], (e0, old) => {
+    db.get("SELECT boi_id FROM baixas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], (e0, old) => {
         if (e0) return sendError(res, e0);
         if (!old) return res.status(404).json({ error: 'Registro não encontrado.' });
 
         const sql = `UPDATE baixas
                      SET boi_id = ?, boton = ?, brinco = ?, ultimo_peso = ?, data_baixa = ?, status = ?, observacao = ?
-                     WHERE id = ?`;
+                     WHERE id = ? AND tenant_id = ?`;
 
-        db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null, req.params.id], function(err) {
+        db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null, req.params.id, req.tenantId], function(err) {
             if (err) return sendError(res, err);
             const changes = this.changes;
 
             const finish = () => res.json({ changes });
             const syncNew = () => {
-                db.run("UPDATE bois SET baixa_id = ?, baixa_status = ? WHERE id = ?", [req.params.id, status, boi_id], (updateErr) => {
+                db.run("UPDATE bois SET baixa_id = ?, baixa_status = ? WHERE id = ? AND tenant_id = ?", [req.params.id, status, boi_id, req.tenantId], (updateErr) => {
                     if (updateErr) console.error('Error synchronizing boi status on update:', updateErr.message);
                     finish();
                 });
             };
             // Se a baixa foi movida para outro animal, libera o animal anterior
             if (String(old.boi_id) !== String(boi_id)) {
-                db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ?", [old.boi_id], (revErr) => {
+                db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ? AND tenant_id = ?", [old.boi_id, req.tenantId], (revErr) => {
                     if (revErr) console.error('Error reverting previous boi status:', revErr.message);
                     syncNew();
                 });
@@ -1430,17 +1469,17 @@ app.put('/api/baixas/:id', (req, res) => {
 // Delete baixa record
 app.delete('/api/baixas/:id', (req, res) => {
     // First get the boi_id before deleting
-    db.get("SELECT boi_id FROM baixas WHERE id = ?", [req.params.id], (err, row) => {
+    db.get("SELECT boi_id FROM baixas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], (err, row) => {
         if (err) return sendError(res, err);
         if (!row) return res.status(404).json({ error: "Record not found" });
 
         const boiId = row.boi_id;
 
-        db.run("DELETE FROM baixas WHERE id = ?", [req.params.id], function(err) {
+        db.run("DELETE FROM baixas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
             if (err) return sendError(res, err);
             
             // Revert boi status
-            db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ?", [boiId], (updateErr) => {
+            db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ? AND tenant_id = ?", [boiId, req.tenantId], (updateErr) => {
                 if (updateErr) console.error('Error reverting boi status:', updateErr.message);
                 res.json({ message: "Deleted successfully" });
             });
@@ -1453,10 +1492,10 @@ app.get('/api/baixas/autocomplete', (req, res) => {
     const sql = `
         SELECT DISTINCT boton, brinco
         FROM baixas
-        WHERE boton IS NOT NULL OR brinco IS NOT NULL
+        WHERE tenant_id = ? AND (boton IS NOT NULL OR brinco IS NOT NULL)
     `;
-    
-    db.all(sql, [], (err, rows) => {
+
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         const botonSet = new Set();
@@ -1477,10 +1516,10 @@ app.get('/api/baixas/autocomplete', (req, res) => {
 // Get chart data (count by status)
 app.get('/api/baixas/chart', (req, res) => {
     const { boton, brinco, status, data_baixa } = req.query;
-    
-    let whereClauses = [];
-    let params = [];
-    
+
+    let whereClauses = ['tenant_id = ?'];
+    let params = [req.tenantId];
+
     if (boton) {
         whereClauses.push('boton LIKE ?');
         params.push(`%${boton}%`);
@@ -1518,9 +1557,9 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
     const boton = req.params.boton;
     
     // First, get the boi_id from boton
-    const boiSql = `SELECT id FROM bois WHERE name = ?`;
-    
-    db.get(boiSql, [boton], (err, boi) => {
+    const boiSql = `SELECT id FROM bois WHERE name = ? AND tenant_id = ?`;
+
+    db.get(boiSql, [boton, req.tenantId], (err, boi) => {
         if (err) return sendError(res, err);
         if (!boi) return res.json({ last_weight: null });
         
@@ -1539,12 +1578,12 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
                 weight_01, date_weight_01,
                 initial_weight_manejo
             FROM manejo_pasto
-            WHERE boi_id = ?
+            WHERE boi_id = ? AND tenant_id = ?
             ORDER BY id DESC
             LIMIT 1
         `;
-        
-        db.get(weightSql, [boi.id], (err, manejo) => {
+
+        db.get(weightSql, [boi.id, req.tenantId], (err, manejo) => {
             if (err) return sendError(res, err);
             
             let lastWeight = null;
@@ -1568,7 +1607,7 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
             
             // If no manejo found, try to get initial weight from bois table
             if (!lastWeight) {
-                db.get('SELECT initial_weight FROM bois WHERE id = ?', [boi.id], (err, boiData) => {
+                db.get('SELECT initial_weight FROM bois WHERE id = ? AND tenant_id = ?', [boi.id, req.tenantId], (err, boiData) => {
                     if (err) return sendError(res, err);
                     res.json({ last_weight: boiData?.initial_weight || null });
                 });
@@ -1587,9 +1626,10 @@ app.get('/api/dietas', (req, res) => {
         FROM dietas d
         LEFT JOIN fazendas f ON d.fazenda_id = f.id
         LEFT JOIN pastos p ON d.pasto_id = p.id
+        WHERE d.tenant_id = ?
         ORDER BY d.data DESC, d.id DESC
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -1601,16 +1641,16 @@ app.post('/api/dietas', (req, res) => {
     // Convert qtd_bois to integer just in case
     const qtdAnimals = parseInt(qtd_bois) || 0;
     
-    const sql = `INSERT INTO dietas (fazenda_id, pasto_id, qtd_bois, data, dieta_tipo, qtd_kg) VALUES (?, ?, ?, ?, ?, ?)`;
-    
-    db.run(sql, [fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg], function(err) {
+    const sql = `INSERT INTO dietas (tenant_id, fazenda_id, pasto_id, qtd_bois, data, dieta_tipo, qtd_kg) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+    db.run(sql, [req.tenantId, fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
 
 app.delete('/api/dietas/:id', (req, res) => {
-    db.run("DELETE FROM dietas WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM dietas WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -1622,9 +1662,9 @@ app.put('/api/dietas/:id', (req, res) => {
     // Convert qtd_bois to integer just in case
     const qtdAnimals = parseInt(qtd_bois) || 0;
     
-    const sql = `UPDATE dietas SET fazenda_id = ?, pasto_id = ?, qtd_bois = ?, data = ?, dieta_tipo = ?, qtd_kg = ? WHERE id = ?`;
-    
-    db.run(sql, [fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg, req.params.id], function(err) {
+    const sql = `UPDATE dietas SET fazenda_id = ?, pasto_id = ?, qtd_bois = ?, data = ?, dieta_tipo = ?, qtd_kg = ? WHERE id = ? AND tenant_id = ?`;
+
+    db.run(sql, [fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -1640,15 +1680,15 @@ app.get('/api/pastos/:id/count', (req, res) => {
             SELECT boi_id
             FROM manejo_pasto m1
             WHERE id = (
-                SELECT MAX(id) 
-                FROM manejo_pasto m2 
-                WHERE m2.boi_id = m1.boi_id
+                SELECT MAX(id)
+                FROM manejo_pasto m2
+                WHERE m2.boi_id = m1.boi_id AND m2.tenant_id = m1.tenant_id
             )
-            AND pasto_id = ?
+            AND pasto_id = ? AND tenant_id = ?
         ) AS ultimos
     `;
 
-    db.get(sql, [pastoId], (err, row) => {
+    db.get(sql, [pastoId, req.tenantId], (err, row) => {
         if (err) return sendError(res, err);
         res.json({ count: row ? row.count : 0 });
     });
@@ -1722,10 +1762,10 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
     const dietSql = `
         SELECT SUM(qtd_kg) as "totalKg"
         FROM dietas 
-        WHERE pasto_id = ? AND data >= ? AND data <= ?
+        WHERE tenant_id = ? AND pasto_id = ? AND data >= ? AND data <= ?
     `;
 
-    db.get(dietSql, [pasto_id, dbStartDate, dbEndDate], (err, row) => {
+    db.get(dietSql, [req.tenantId, pasto_id, dbStartDate, dbEndDate], (err, row) => {
         if (err) return sendError(res, err);
         
         const totalKg = row ? row.totalKg : 0;
@@ -1740,15 +1780,15 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
                 SELECT boi_id
                 FROM manejo_pasto m1
                 WHERE id = (
-                    SELECT MAX(id) 
-                    FROM manejo_pasto m2 
-                    WHERE m2.boi_id = m1.boi_id
+                    SELECT MAX(id)
+                    FROM manejo_pasto m2
+                    WHERE m2.boi_id = m1.boi_id AND m2.tenant_id = m1.tenant_id
                 )
-                AND pasto_id = ?
+                AND pasto_id = ? AND tenant_id = ?
             ) AS ultimos
         `;
-        
-        db.get(countSql, [pasto_id], (err, cRow) => {
+
+        db.get(countSql, [pasto_id, req.tenantId], (err, cRow) => {
             if (err) return sendError(res, err);
             
             // "Quantidade de bois do pasto selecionado de acordo com a fazenda"
@@ -1786,14 +1826,15 @@ app.get('/api/bois/pasto/:pastoId', (req, res) => {
             WHERE m1.id = (
                 SELECT MAX(id)
                 FROM manejo_pasto m2
-                WHERE m2.boi_id = m1.boi_id
+                WHERE m2.boi_id = m1.boi_id AND m2.tenant_id = m1.tenant_id
             )
-            AND m1.pasto_id = ?
+            AND m1.pasto_id = ? AND m1.tenant_id = ?
         )
+        AND b.tenant_id = ?
         AND (b.baixa_id IS NULL) -- Only active animals
         ORDER BY b.name
     `;
-    db.all(sql, [pastoId], (err, rows) => {
+    db.all(sql, [pastoId, req.tenantId, req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -1816,12 +1857,12 @@ app.get('/api/bois/:id/weight', (req, res) => {
             weight_01, date_weight_01,
             initial_weight_manejo
         FROM manejo_pasto
-        WHERE boi_id = ?
+        WHERE boi_id = ? AND tenant_id = ?
         ORDER BY id DESC
         LIMIT 1
     `;
-    
-    db.get(weightSql, [boiId], (err, manejo) => {
+
+    db.get(weightSql, [boiId, req.tenantId], (err, manejo) => {
         if (err) return sendError(res, err);
         
         let lastWeight = null;
@@ -1846,7 +1887,7 @@ app.get('/api/bois/:id/weight', (req, res) => {
         
         // If still no weight, check bois table initial_weight
         if (!lastWeight) {
-            db.get('SELECT initial_weight, arrival_date FROM bois WHERE id = ?', [boiId], (err, boi) => {
+            db.get('SELECT initial_weight, arrival_date FROM bois WHERE id = ? AND tenant_id = ?', [boiId, req.tenantId], (err, boi) => {
                 if (err) return sendError(res, err);
                 res.json({ weight: boi?.initial_weight || 0, date: boi?.arrival_date || null });
             });
@@ -1863,9 +1904,10 @@ app.get('/api/perspectives', (req, res) => {
         LEFT JOIN bois b ON p.boi_id = b.id
         LEFT JOIN fazendas f ON p.fazenda_id = f.id
         LEFT JOIN pastos pas ON p.pasto_id = pas.id
+        WHERE p.tenant_id = ?
         ORDER BY p.created_at DESC
     `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         res.json(rows);
     });
@@ -1873,9 +1915,9 @@ app.get('/api/perspectives', (req, res) => {
 
 app.post('/api/perspectives', (req, res) => {
     const { boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight } = req.body;
-    const sql = `INSERT INTO perspectives (boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.run(sql, [boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight], function(err) {
+    const sql = `INSERT INTO perspectives (tenant_id, boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.run(sql, [req.tenantId, boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
@@ -1885,15 +1927,15 @@ app.put('/api/perspectives/:id', (req, res) => {
     const { boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight } = req.body;
     const sql = `UPDATE perspectives 
                  SET boi_id = ?, fazenda_id = ?, pasto_id = ?, start_date = ?, days = ?, daily_rate = ?, initial_weight = ?, final_weight = ?
-                 WHERE id = ?`;
-    db.run(sql, [boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight, req.params.id], function(err) {
+                 WHERE id = ? AND tenant_id = ?`;
+    db.run(sql, [boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
 
 app.delete('/api/perspectives/:id', (req, res) => {
-    db.run("DELETE FROM perspectives WHERE id = ?", [req.params.id], function(err) {
+    db.run("DELETE FROM perspectives WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
@@ -1951,7 +1993,7 @@ app.get('/api/genealogia/arvore/:id', (req, res) => {
     
     // Efficiency: Fetch all bois to build tree in memory (assuming manageable dataset size for this prototype)
     // For very large datasets, we would use Recursive CTEs in SQL.
-    db.all("SELECT id, name, brinco, pai_id, mae_id, sexo, geracao FROM bois", [], (err, rows) => {
+    db.all("SELECT id, name, brinco, pai_id, mae_id, sexo, geracao FROM bois WHERE tenant_id = ?", [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         const boisMap = new Map();
@@ -1968,7 +2010,7 @@ app.get('/api/genealogia/consanguinidade', (req, res) => {
     const { pai_id, mae_id } = req.query;
     if (!pai_id || !mae_id) return res.status(400).json({ error: "pai_id and mae_id are required" });
     
-    db.all("SELECT id, pai_id, mae_id FROM bois", [], (err, rows) => {
+    db.all("SELECT id, pai_id, mae_id FROM bois WHERE tenant_id = ?", [req.tenantId], (err, rows) => {
         if (err) return sendError(res, err);
         
         const boisMap = new Map();

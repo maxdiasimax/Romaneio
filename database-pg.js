@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Pool, types } = require('pg');
-const bcrypt = require('bcrypt');
 
 // --- Tipos: devolve valores como SQLite/MySQL devolviam (números JS e datas em string) ---
 types.setTypeParser(20, (v) => Number(v));        // bigint (ids, COUNT)
@@ -15,7 +14,7 @@ const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'postgres',
-    ssl: { rejectUnauthorized: false },
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }, // DB_SSL=false só para banco local de testes
     max: 10
 });
 
@@ -106,24 +105,15 @@ class Database {
 
     initDb() {
         console.log('Connecting to PostgreSQL (Supabase)...');
-        // As tabelas são criadas por supabase_schema.sql. Aqui só garante o usuário admin.
-        this.get('SELECT id FROM users WHERE username = ?', ['admin'], (err, row) => {
+        // As tabelas são criadas por supabase_schema.sql / migrations/. Aqui só testa a conexão.
+        // Não há mais usuário admin padrão: crie empresas e administradores com
+        //   node scripts/create-tenant.js "Nome da Empresa" usuario "Nome do Admin" senha
+        this.get('SELECT COUNT(*) AS n FROM tenants', [], (err, row) => {
             if (err) {
-                console.error('Error connecting to database:', err.message);
+                console.error('Error connecting to database (a migração multi-tenant foi aplicada?):', err.message);
                 return;
             }
-            console.log('Connected to PostgreSQL.');
-            if (!row) {
-                const hash = bcrypt.hashSync('admin123', bcrypt.genSaltSync(10));
-                this.run(
-                    'INSERT INTO users (name, username, password, profile) VALUES (?, ?, ?, ?)',
-                    ['Administrador', 'admin', hash, 'Admin'],
-                    (err2) => {
-                        if (err2) console.error('Error creating admin user:', err2.message);
-                        else console.log('Admin user created (user: admin, pass: admin123)');
-                    }
-                );
-            }
+            console.log(`Connected to PostgreSQL. Empresas cadastradas: ${row.n}`);
         });
     }
 }

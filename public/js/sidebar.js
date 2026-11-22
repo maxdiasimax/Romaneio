@@ -130,7 +130,7 @@
             '<div class="sidebar-header">' +
                 '<a class="sidebar-brand" href="dashboard.html" title="Romaneio – Sistema de Controle">' +
                     '<img src="imagens/logo-app-64.png" alt="Romaneio" width="42" height="42">' +
-                    '<span class="sidebar-brand-text"><strong>Romaneio</strong><small>Sistema de controle</small></span>' +
+                    '<span class="sidebar-brand-text"><strong>Romaneio</strong><small>' + window.escapeHtml(user.tenant || 'Sistema de controle') + '</small></span>' +
                 '</a>' +
                 '<button id="sidebar-toggle" class="sidebar-toggle-btn" type="button" aria-label="Alternar menu"><i class="fas fa-bars"></i></button>' +
             '</div>' +
