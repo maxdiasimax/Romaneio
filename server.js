@@ -43,7 +43,7 @@ function sendError(res, err) {
     console.error('[DB]', err && err.message);
     const code = err && err.code;
     if (code === '23505') return res.status(409).json({ error: 'Já existe um registro com esses dados.' });
-    if (code === '23503') return res.status(409).json({ error: 'Operação não permitida: o registro está vinculado a outros dados.' });
+    if (code === '23503') return res.status(409).json({ error: 'Operação não permitida: o registro está vinculado a outros dados ou a referência informada não existe.' });
     if (code === '23502' || code === '22P02' || code === '22007' || code === '22003' || code === '23514' || code === '22001') {
         return res.status(400).json({ error: 'Dados inválidos. Verifique os campos informados.' });
     }
@@ -319,6 +319,59 @@ app.put('/api/platform/tenants/:id', requirePlatformAdmin, (req, res) => {
         if (this.changes === 0) return res.status(404).json({ error: 'Empresa não encontrada.' });
         res.json({ changes: this.changes });
     });
+});
+
+// Usuários de uma empresa (visão do dono da plataforma; nunca expõe hash de senha)
+app.get('/api/platform/tenants/:id/users', requirePlatformAdmin, (req, res) => {
+    db.all('SELECT id, name, username, celular, profile FROM users WHERE tenant_id = ? ORDER BY name', [req.params.id], (err, rows) => {
+        if (err) return sendError(res, err);
+        res.json(rows);
+    });
+});
+
+// Redefine a senha de um usuário de qualquer empresa (suporte)
+app.post('/api/platform/tenants/:id/users/:uid/password', requirePlatformAdmin, async (req, res) => {
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres.' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    db.run('UPDATE users SET password = ? WHERE id = ? AND tenant_id = ?', [hash, req.params.uid, req.params.id], function(err) {
+        if (err) return sendError(res, err);
+        if (this.changes === 0) return res.status(404).json({ error: 'Usuário não encontrado nesta empresa.' });
+        res.json({ changes: this.changes });
+    });
+});
+
+// Exclusão DEFINITIVA de empresa e de todos os seus dados. Salvaguardas: a empresa precisa estar
+// suspensa, não pode ser a do próprio usuário e o nome deve ser digitado como confirmação.
+app.delete('/api/platform/tenants/:id', requirePlatformAdmin, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Empresa inválida.' });
+    if (id === req.tenantId) return res.status(400).json({ error: 'Você não pode excluir a sua própria empresa.' });
+    let client;
+    try {
+        client = await db.pool.connect();
+        const t = await client.query('SELECT name, active FROM tenants WHERE id = $1', [id]);
+        if (!t.rows[0]) return res.status(404).json({ error: 'Empresa não encontrada.' });
+        if (t.rows[0].active) return res.status(400).json({ error: 'Suspenda a empresa antes de excluí-la.' });
+        if (!req.body || req.body.confirm_name !== t.rows[0].name) {
+            return res.status(400).json({ error: 'Confirmação inválida: digite o nome exato da empresa.' });
+        }
+        await client.query('BEGIN');
+        // Ordem: filhos antes dos pais (as FKs compostas também fariam cascade, mas assim fica explícito)
+        for (const table of ['dietas', 'perspectives', 'baixas', 'vacinas', 'manejo_pasto', 'bois', 'pastos', 'fazendas', 'users']) {
+            await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [id]);
+        }
+        await client.query('DELETE FROM tenants WHERE id = $1', [id]);
+        await client.query('COMMIT');
+        res.json({ deleted: true });
+    } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        sendError(res, err);
+    } finally {
+        if (client) client.release();
+    }
 });
 
 // --- FAZENDAS ---
@@ -2107,6 +2160,25 @@ app.get('/api/genealogia/consanguinidade', (req, res) => {
         });
     });
 });
+
+// /api inexistente: JSON em vez da página padrão do Express
+app.use('/api', (req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
+
+// Handler global: erros lançados fora do sendError (JSON inválido, exceções em rotas async)
+// nunca devolvem stack trace nem mensagens internas ao cliente, independentemente de NODE_ENV.
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    console.error('[ERRO]', err && err.message);
+    if (err && (err.type === 'entity.parse.failed' || err.status === 400)) {
+        return res.status(400).json({ error: 'Requisição inválida.' });
+    }
+    if (err && err.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Requisição grande demais.' });
+    }
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+});
+
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason && reason.message || reason));
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

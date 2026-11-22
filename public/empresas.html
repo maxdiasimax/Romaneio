@@ -11,7 +11,23 @@
         .badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:.8rem; font-weight:600; }
         .badge-ok { background:#dcf5e3; color:#17692d; }
         .badge-off { background:#fde2e2; color:#a11a1a; }
-        .link-btn { background:none; border:none; cursor:pointer; padding:0; font:inherit; }
+        .link-btn { background:none; border:none; cursor:pointer; padding:0; font:inherit; margin-right:12px; }
+        .link-btn:disabled { opacity:.4; cursor:not-allowed; }
+        .panel { background:#fff; padding:1.25rem 1.5rem; border-radius:8px; margin-bottom:1.25rem; }
+        .stats { display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+        .stat { background:#fff; border-radius:8px; padding:.9rem 1.25rem; min-width:130px; }
+        .stat strong { display:block; font-size:1.6rem; color:var(--navy-800, #0c2559); }
+        .stat span { font-size:.8rem; color:#5b6b86; text-transform:uppercase; letter-spacing:.04em; }
+        .toolbar { display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; }
+        .toolbar .form-group { margin:0; min-width:200px; flex:1; }
+        .toolbar .actions { display:flex; gap:.5rem; }
+        th.sortable { cursor:pointer; user-select:none; }
+        th.sortable .arrow { opacity:.5; margin-left:4px; font-size:.7rem; }
+        .modal-wide { max-width:620px !important; }
+        .user-row { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.5rem 0; border-bottom:1px solid #eef1f6; }
+        .user-row small { color:#5b6b86; }
+        .danger-zone { border:1px solid #f3b6b6; background:#fff6f6; border-radius:8px; padding:.9rem; color:#7a1b1b; }
+        .empty { text-align:center; color:#5b6b86; padding:1.5rem; }
     </style>
 </head>
 <body>
@@ -21,43 +37,74 @@
         <main class="main-content">
             <div class="table-header">
                 <h2>Gestão de Empresas</h2>
+                <button type="button" id="btn-new" class="btn-primary"><i class="fas fa-plus"></i> Nova empresa</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat"><strong id="st-total">0</strong><span>Empresas</span></div>
+                <div class="stat"><strong id="st-active">0</strong><span>Ativas</span></div>
+                <div class="stat"><strong id="st-off">0</strong><span>Suspensas</span></div>
+                <div class="stat"><strong id="st-users">0</strong><span>Usuários</span></div>
             </div>
 
             <!-- Nova empresa + primeiro administrador -->
-            <form id="empresa-form" autocomplete="off">
-                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+            <form id="empresa-form" autocomplete="off" class="panel" style="display:none">
+                <h3 style="margin-bottom:1rem">Nova empresa</h3>
+                <div class="form-grid">
                     <div class="form-group">
                         <label for="emp-name">Nome da empresa</label>
-                        <input type="text" id="emp-name" required placeholder="Ex.: Fazenda Boa Vista">
+                        <input type="text" id="emp-name" required maxlength="120" placeholder="Ex.: Fazenda Boa Vista">
                     </div>
                     <div class="form-group">
                         <label for="emp-admin-name">Nome do administrador</label>
-                        <input type="text" id="emp-admin-name" required placeholder="Nome completo">
+                        <input type="text" id="emp-admin-name" required maxlength="120" placeholder="Nome completo">
                     </div>
                     <div class="form-group">
                         <label for="emp-admin-user">Usuário do administrador</label>
-                        <input type="text" id="emp-admin-user" required autocapitalize="none" placeholder="Único em todo o sistema">
+                        <input type="text" id="emp-admin-user" required autocapitalize="none" maxlength="60" placeholder="Único em todo o sistema">
                     </div>
                     <div class="form-group">
                         <label for="emp-admin-pass">Senha inicial</label>
                         <input type="password" id="emp-admin-pass" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
                     </div>
-                    <div class="form-actions" style="align-self: flex-end;">
+                    <div class="form-actions" style="align-self:flex-end">
                         <button type="submit" class="btn-primary">Cadastrar empresa</button>
+                        <button type="button" id="btn-cancel-new" class="btn-cancel">Cancelar</button>
                     </div>
                 </div>
             </form>
+
+            <!-- Filtros -->
+            <div class="panel">
+                <div class="toolbar">
+                    <div class="form-group">
+                        <label for="f-search">Buscar</label>
+                        <input type="search" id="f-search" placeholder="Nome ou ID da empresa">
+                    </div>
+                    <div class="form-group" style="max-width:200px">
+                        <label for="f-status">Status</label>
+                        <select id="f-status">
+                            <option value="">Todos</option>
+                            <option value="active">Ativas</option>
+                            <option value="off">Suspensas</option>
+                        </select>
+                    </div>
+                    <div class="actions">
+                        <button type="button" id="btn-clear" class="btn-cancel"><i class="fas fa-eraser"></i> Limpar</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="table-container">
                 <table id="empresas-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Empresa</th>
-                            <th>Status</th>
-                            <th>Usuários</th>
-                            <th>Bovinos</th>
-                            <th>Criada em</th>
+                            <th class="sortable" data-sort="id">ID<span class="arrow"></span></th>
+                            <th class="sortable" data-sort="name">Empresa<span class="arrow"></span></th>
+                            <th class="sortable" data-sort="active">Status<span class="arrow"></span></th>
+                            <th class="sortable" data-sort="users_count">Usuários<span class="arrow"></span></th>
+                            <th class="sortable" data-sort="bois_count">Bovinos<span class="arrow"></span></th>
+                            <th class="sortable" data-sort="created_at">Criada em<span class="arrow"></span></th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -67,32 +114,125 @@
         </main>
     </div>
 
+    <!-- Modal: editar empresa + usuários -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-container modal-wide">
+            <h3 class="modal-title">Editar empresa</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="ed-name">Nome</label>
+                    <input type="text" id="ed-name" maxlength="120">
+                </div>
+                <div class="form-group">
+                    <label for="ed-active">Status</label>
+                    <select id="ed-active">
+                        <option value="true">Ativa</option>
+                        <option value="false">Suspensa (usuários sem acesso)</option>
+                    </select>
+                </div>
+            </div>
+            <h4 style="margin:1rem 0 .25rem">Usuários da empresa</h4>
+            <div id="ed-users"></div>
+            <div class="modal-actions" style="margin-top:1.25rem">
+                <button type="button" id="ed-cancel" class="btn-cancel">Fechar</button>
+                <button type="button" id="ed-save" class="btn-primary">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: excluir empresa -->
+    <div id="del-modal" class="modal-overlay">
+        <div class="modal-container">
+            <h3 class="modal-title">Excluir empresa</h3>
+            <div class="danger-zone">
+                Esta ação é <strong>definitiva</strong>: apaga a empresa, todos os usuários e todos os dados dela
+                (fazendas, pastos, bovinos, manejo, vacinas, dietas, baixas). Não há como desfazer.
+            </div>
+            <div class="form-group" style="margin-top:1rem">
+                <label for="del-confirm">Digite <strong id="del-name"></strong> para confirmar</label>
+                <input type="text" id="del-confirm" autocomplete="off">
+            </div>
+            <div class="modal-actions" style="margin-top:1rem">
+                <button type="button" id="del-cancel" class="btn-cancel">Cancelar</button>
+                <button type="button" id="del-ok" class="btn-primary" style="background:#c0392b" disabled>Excluir definitivamente</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const $ = (id) => document.getElementById(id);
         const tbody = document.querySelector('#empresas-table tbody');
-        const form = document.getElementById('empresa-form');
         let empresas = [];
+        let sort = { key: 'id', dir: 1 };
+        let editing = null;
+        let deleting = null;
 
         function showMessage(msg, type) {
             const old = document.querySelector('.success-message');
             if (old) old.remove();
             const div = document.createElement('div');
             div.className = 'success-message toast-' + type;
-            div.innerHTML = msg; // sempre texto escapado ou fixo
+            div.innerHTML = msg; // somente texto escapado ou fixo
             document.body.appendChild(div);
             setTimeout(() => div.remove(), 5000);
         }
         const toast = (title, text, type) =>
             showMessage('<span class="toast-title">' + escapeHtml(title) + '</span>' + escapeHtml(text), type);
 
+        async function api(method, url, body) {
+            const res = await fetch(url, {
+                method,
+                headers: body ? { 'Content-Type': 'application/json' } : undefined,
+                body: body ? JSON.stringify(body) : undefined
+            });
+            const data = await res.json().catch(() => ({}));
+            return { ok: res.ok, status: res.status, data };
+        }
+
+        // ---------- Lista / filtros / ordenação ----------
         async function load() {
-            const res = await fetch('/api/platform/tenants');
-            if (res.status === 403) {
-                tbody.innerHTML = '<tr><td colspan="7">Acesso restrito ao administrador da plataforma.</td></tr>';
+            const r = await api('GET', '/api/platform/tenants');
+            if (r.status === 403) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">Acesso restrito ao administrador da plataforma.</td></tr>';
                 return;
             }
-            if (!res.ok) { toast('Erro', 'Não foi possível carregar as empresas.', 'error'); return; }
-            empresas = await res.json();
-            tbody.innerHTML = empresas.map(e => `
+            if (!r.ok) return toast('Erro', 'Não foi possível carregar as empresas.', 'error');
+            empresas = r.data;
+            render();
+        }
+
+        function filtered() {
+            const q = $('f-search').value.trim().toLowerCase();
+            const st = $('f-status').value;
+            return empresas.filter(e => {
+                if (st === 'active' && !e.active) return false;
+                if (st === 'off' && e.active) return false;
+                if (q && !(String(e.name).toLowerCase().includes(q) || String(e.id) === q)) return false;
+                return true;
+            });
+        }
+
+        function render() {
+            $('st-total').textContent = empresas.length;
+            $('st-active').textContent = empresas.filter(e => e.active).length;
+            $('st-off').textContent = empresas.filter(e => !e.active).length;
+            $('st-users').textContent = empresas.reduce((a, e) => a + Number(e.users_count || 0), 0);
+
+            const rows = filtered().sort((a, b) => {
+                let x = a[sort.key], y = b[sort.key];
+                if (typeof x === 'string') { x = x.toLowerCase(); y = String(y).toLowerCase(); }
+                return (x > y ? 1 : x < y ? -1 : 0) * sort.dir;
+            });
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.querySelector('.arrow').textContent = th.dataset.sort === sort.key ? (sort.dir === 1 ? '▲' : '▼') : '';
+            });
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhuma empresa encontrada.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(e => {
+                return `
                 <tr>
                     <td>${e.id}</td>
                     <td>${escapeHtml(e.name)}</td>
@@ -101,63 +241,139 @@
                     <td>${e.bois_count}</td>
                     <td>${escapeHtml(String(e.created_at || '').slice(0, 10).split('-').reverse().join('/'))}</td>
                     <td>
-                        <button class="link-btn" style="color:var(--primary-color)" data-act="rename" data-id="${e.id}">Renomear</button>
-                        <button class="link-btn" style="color:${e.active ? 'red' : 'green'}; margin-left:10px" data-act="toggle" data-id="${e.id}">${e.active ? 'Suspender' : 'Reativar'}</button>
+                        <button class="link-btn" style="color:var(--primary-color)" data-act="edit" data-id="${e.id}">Editar</button>
+                        <button class="link-btn" style="color:${e.active ? '#d4730c' : 'green'}" data-act="toggle" data-id="${e.id}">${e.active ? 'Suspender' : 'Reativar'}</button>
+                        <button class="link-btn" style="color:red" data-act="delete" data-id="${e.id}" ${e.active ? 'disabled title="Suspenda a empresa antes de excluir"' : ''}>Excluir</button>
                     </td>
-                </tr>`).join('');
+                </tr>`;
+            }).join('');
         }
 
-        async function save(e, name, active, okMsg) {
-            const res = await fetch('/api/platform/tenants/' + e.id, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, active })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) return toast('Erro', data.error || 'Não foi possível salvar.', 'error');
-            toast('Sucesso', okMsg, 'success');
-            load();
-        }
-
-        tbody.addEventListener('click', (ev) => {
-            const btn = ev.target.closest('button[data-act]');
-            if (!btn) return;
-            const emp = empresas.find(x => String(x.id) === btn.dataset.id);
-            if (!emp) return;
-            if (btn.dataset.act === 'rename') {
-                const name = prompt('Novo nome da empresa:', emp.name);
-                if (name && name.trim() && name.trim() !== emp.name) save(emp, name.trim(), emp.active, 'Empresa renomeada.');
-            } else {
-                const msg = emp.active
-                    ? 'Suspender "' + emp.name + '"? Os usuários dela perdem o acesso imediatamente (os dados são mantidos).'
-                    : 'Reativar "' + emp.name + '"?';
-                if (confirm(msg)) save(emp, emp.name, !emp.active, emp.active ? 'Empresa suspensa.' : 'Empresa reativada.');
-            }
+        $('f-search').addEventListener('input', render);
+        $('f-status').addEventListener('change', render);
+        $('btn-clear').addEventListener('click', () => {
+            $('f-search').value = '';
+            $('f-status').value = '';
+            sort = { key: 'id', dir: 1 };
+            render();
         });
+        document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', () => {
+            const k = th.dataset.sort;
+            sort = { key: k, dir: sort.key === k ? -sort.dir : 1 };
+            render();
+        }));
+
+        // ---------- Criar ----------
+        const form = $('empresa-form');
+        $('btn-new').addEventListener('click', () => {
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            if (form.style.display === 'block') $('emp-name').focus();
+        });
+        $('btn-cancel-new').addEventListener('click', () => { form.reset(); form.style.display = 'none'; });
 
         form.addEventListener('submit', async (ev) => {
             ev.preventDefault();
             const btn = form.querySelector('button[type=submit]');
             btn.disabled = true;
             try {
-                const res = await fetch('/api/platform/tenants', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: document.getElementById('emp-name').value,
-                        admin_name: document.getElementById('emp-admin-name').value,
-                        admin_username: document.getElementById('emp-admin-user').value,
-                        admin_password: document.getElementById('emp-admin-pass').value
-                    })
+                const r = await api('POST', '/api/platform/tenants', {
+                    name: $('emp-name').value,
+                    admin_name: $('emp-admin-name').value,
+                    admin_username: $('emp-admin-user').value,
+                    admin_password: $('emp-admin-pass').value
                 });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) return toast('Erro', data.error || 'Não foi possível cadastrar.', 'error');
+                if (!r.ok) return toast('Erro', r.data.error || 'Não foi possível cadastrar.', 'error');
                 form.reset();
+                form.style.display = 'none';
                 toast('Sucesso', 'Empresa cadastrada. Passe o usuário e a senha ao administrador dela.', 'success');
                 load();
             } finally {
                 btn.disabled = false;
             }
+        });
+
+        // ---------- Ações da tabela ----------
+        tbody.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('button[data-act]');
+            if (!btn || btn.disabled) return;
+            const emp = empresas.find(x => String(x.id) === btn.dataset.id);
+            if (!emp) return;
+            if (btn.dataset.act === 'edit') openEdit(emp);
+            else if (btn.dataset.act === 'delete') openDelete(emp);
+            else {
+                const msg = emp.active
+                    ? 'Suspender "' + emp.name + '"? Os usuários dela perdem o acesso imediatamente (os dados são mantidos).'
+                    : 'Reativar "' + emp.name + '"?';
+                if (confirm(msg)) saveTenant(emp.id, emp.name, !emp.active, emp.active ? 'Empresa suspensa.' : 'Empresa reativada.');
+            }
+        });
+
+        async function saveTenant(id, name, active, okMsg) {
+            const r = await api('PUT', '/api/platform/tenants/' + id, { name, active });
+            if (!r.ok) { toast('Erro', r.data.error || 'Não foi possível salvar.', 'error'); return false; }
+            toast('Sucesso', okMsg, 'success');
+            load();
+            return true;
+        }
+
+        // ---------- Editar + usuários ----------
+        async function openEdit(emp) {
+            editing = emp;
+            $('ed-name').value = emp.name;
+            $('ed-active').value = String(emp.active);
+            $('ed-users').innerHTML = '<div class="empty">Carregando...</div>';
+            $('edit-modal').classList.add('active');
+            const r = await api('GET', '/api/platform/tenants/' + emp.id + '/users');
+            if (!r.ok) { $('ed-users').innerHTML = '<div class="empty">Erro ao carregar usuários.</div>'; return; }
+            $('ed-users').innerHTML = r.data.length ? r.data.map(u => `
+                <div class="user-row">
+                    <div><strong>${escapeHtml(u.name)}</strong> <small>(${escapeHtml(u.username)} · ${escapeHtml(u.profile)})</small></div>
+                    <button type="button" class="link-btn" style="color:var(--primary-color); margin:0" data-uid="${u.id}">Redefinir senha</button>
+                </div>`).join('') : '<div class="empty">Nenhum usuário.</div>';
+        }
+        $('ed-users').addEventListener('click', async (ev) => {
+            const btn = ev.target.closest('button[data-uid]');
+            if (!btn || !editing) return;
+            const pw = prompt('Nova senha para este usuário (mínimo 8 caracteres):');
+            if (pw === null) return;
+            const r = await api('POST', '/api/platform/tenants/' + editing.id + '/users/' + btn.dataset.uid + '/password', { password: pw });
+            if (r.ok) toast('Sucesso', 'Senha redefinida. Informe-a ao usuário.', 'success');
+            else toast('Erro', r.data.error || 'Não foi possível redefinir a senha.', 'error');
+        });
+        $('ed-cancel').addEventListener('click', () => { $('edit-modal').classList.remove('active'); editing = null; });
+        $('ed-save').addEventListener('click', async () => {
+            const name = $('ed-name').value.trim();
+            if (!name) return toast('Erro', 'Informe o nome da empresa.', 'error');
+            if (await saveTenant(editing.id, name, $('ed-active').value === 'true', 'Empresa atualizada.')) {
+                $('edit-modal').classList.remove('active');
+                editing = null;
+            }
+        });
+
+        // ---------- Excluir ----------
+        function openDelete(emp) {
+            deleting = emp;
+            $('del-name').textContent = emp.name;
+            $('del-confirm').value = '';
+            $('del-ok').disabled = true;
+            $('del-modal').classList.add('active');
+            $('del-confirm').focus();
+        }
+        $('del-confirm').addEventListener('input', () => {
+            $('del-ok').disabled = !deleting || $('del-confirm').value !== deleting.name;
+        });
+        $('del-cancel').addEventListener('click', () => { $('del-modal').classList.remove('active'); deleting = null; });
+        $('del-ok').addEventListener('click', async () => {
+            const r = await api('DELETE', '/api/platform/tenants/' + deleting.id, { confirm_name: $('del-confirm').value });
+            if (!r.ok) return toast('Erro', r.data.error || 'Não foi possível excluir.', 'error');
+            $('del-modal').classList.remove('active');
+            deleting = null;
+            toast('Sucesso', 'Empresa excluída definitivamente.', 'success');
+            load();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
         });
 
         load();

@@ -143,6 +143,28 @@ const login = async (u, p) => (await call(null, 'POST', '/api/login', { username
   ok((await call(A2.token, 'PUT', `/api/platform/tenants/${(await c.query("select id from tenants where name='Empresa A'")).rows[0].id}`, { name: 'Empresa A', active: false })).s === 400, 'nao suspende a propria empresa');
   ok((await call(A2.token, 'PUT', `/api/platform/tenants/99999`, { name: 'Z', active: true })).s === 404, 'empresa inexistente 404');
   ok((await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: true })).s === 200, 'reativa C');
+  // usuários / senha / exclusão
+  const cu = await call(A2.token, 'GET', `/api/platform/tenants/${nt.j.id}/users`); ok(cu.s === 200 && cu.j.length === 1 && !('password' in cu.j[0]), 'lista usuarios de C sem hash');
+  ok((await call(A2.token, 'POST', `/api/platform/tenants/${nt.j.id}/users/${cu.j[0].id}/password`, { password: 'curta' })).s === 400, 'reset senha curta 400');
+  ok((await call(A2.token, 'POST', `/api/platform/tenants/${nt.j.id}/users/${cu.j[0].id}/password`, { password: 'novaSenha99' })).s === 200, 'reset senha ok');
+  ok((await login('admin_c', 'novaSenha99')).token, 'login com senha redefinida');
+  ok((await call(A2.token, 'POST', `/api/platform/tenants/${nt.j.id}/users/${uidA}/password`, { password: 'novaSenha99' })).s === 404, 'reset nao atravessa empresas');
+  ok((await call(C.token, 'GET', `/api/platform/tenants/${nt.j.id}/users`)).s === 403, 'admin C nao lista usuarios via platform');
+  ok((await call(C.token, 'DELETE', `/api/platform/tenants/${nt.j.id}`, { confirm_name: 'Empresa C2' })).s === 403, 'admin C nao exclui');
+  ok((await call(A2.token, 'DELETE', `/api/platform/tenants/${nt.j.id}`, { confirm_name: 'Empresa C2' })).s === 400, 'excluir ativa -> 400');
+  await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: false });
+  await call((await login('admin_c', 'novaSenha99')).token, 'POST', '/api/fazendas', { name: 'x' }); // suspensa: 403, sem efeito
+  ok((await call(A2.token, 'DELETE', `/api/platform/tenants/${nt.j.id}`, { confirm_name: 'errado' })).s === 400, 'confirmacao errada -> 400');
+  const ownT = (await c.query("select id from tenants where name='Empresa A'")).rows[0].id;
+  ok((await call(A2.token, 'DELETE', `/api/platform/tenants/${ownT}`, { confirm_name: 'Empresa A' })).s === 400, 'nao exclui a propria empresa');
+  // C tem dados: reativa, cria dados, suspende e exclui
+  await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: true });
+  const Cn = await login('admin_c', 'novaSenha99');
+  const fc = (await call(Cn.token, 'POST', '/api/fazendas', { name: 'FazC' })).j.id; await call(Cn.token, 'POST', '/api/pastos', { name: 'PC', fazenda_id: fc }); await call(Cn.token, 'POST', '/api/bois', { name: 'BC' });
+  await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: false });
+  ok((await call(A2.token, 'DELETE', `/api/platform/tenants/${nt.j.id}`, { confirm_name: 'Empresa C2' })).j.deleted === true, 'exclui empresa C com dados');
+  ok((await c.query(`select (select count(*)::int from tenants where id=${nt.j.id}) t,(select count(*)::int from users where tenant_id=${nt.j.id}) u,(select count(*)::int from bois where tenant_id=${nt.j.id}) b`)).rows[0].t === 0, 'C removida');
+  ok((await call(A2.token, 'GET', '/api/bois')).j.length === 2, 'dados de A intactos apos excluir C');
   await c.end();
   console.log(`\n${passes} ok, ${fails} falhas`); process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
