@@ -1,0 +1,344 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1795366632.8761244,
+    "seen": 1795368275.1373818,
+    "ast_hash": "5203c036a8ecf2cb9aaa99b49ef10278",
+    "semantic_hash": "5203c036a8ecf2cb9aaa99b49ef10278"
+  },
+  "check_bois.js": {
+    "mtime": 1792099497.2661538,
+    "seen": 1795368275.137384,
+    "ast_hash": "39e28b9b7ba0b2d0a4b3b1fce4486fae",
+    "semantic_hash": "39e28b9b7ba0b2d0a4b3b1fce4486fae"
+  },
+  "check_vacinas_table.js": {
+    "mtime": 1792099497.266214,
+    "seen": 1795368275.137385,
+    "ast_hash": "e354d129ea81ffc388fcade036b7b471",
+    "semantic_hash": "e354d129ea81ffc388fcade036b7b471"
+  },
+  "database-mysql.js": {
+    "mtime": 1792099497.2662692,
+    "seen": 1795368275.137385,
+    "ast_hash": "4c485b7208f71c795096c5dd65673232",
+    "semantic_hash": "4c485b7208f71c795096c5dd65673232"
+  },
+  "database-pg.js": {
+    "mtime": 1795366778.7605345,
+    "seen": 1795368275.137386,
+    "ast_hash": "8bed0f28b76694e0a1ae44a010217e1d",
+    "semantic_hash": "8bed0f28b76694e0a1ae44a010217e1d"
+  },
+  "database.js": {
+    "mtime": 1792099497.2663736,
+    "seen": 1795368275.137386,
+    "ast_hash": "010de8e17580d671658f72c4d8892709",
+    "semantic_hash": "010de8e17580d671658f72c4d8892709"
+  },
+  "debug_api.js": {
+    "mtime": 1792099497.266433,
+    "seen": 1795368275.137387,
+    "ast_hash": "5f02c82ba7afbb4b41298be9e344bd5c",
+    "semantic_hash": "5f02c82ba7afbb4b41298be9e344bd5c"
+  },
+  "debug_count.js": {
+    "mtime": 1792099497.266485,
+    "seen": 1795368275.137389,
+    "ast_hash": "31989b286ba440ed5aafef74ce0b3779",
+    "semantic_hash": "31989b286ba440ed5aafef74ce0b3779"
+  },
+  "debug_delete.js": {
+    "mtime": 1792099497.266541,
+    "seen": 1795368275.1373901,
+    "ast_hash": "b848218d26bd35df96004c9346d6e7e8",
+    "semantic_hash": "b848218d26bd35df96004c9346d6e7e8"
+  },
+  "index.js": {
+    "mtime": 1795313974.961186,
+    "seen": 1795368275.1373901,
+    "ast_hash": "7bd2739e6ce41d39a68f39434c2a7fb7",
+    "semantic_hash": "7bd2739e6ce41d39a68f39434c2a7fb7"
+  },
+  "migrate_data.js": {
+    "mtime": 1792099497.2666156,
+    "seen": 1795368275.1373901,
+    "ast_hash": "aaab838638fd8be1c95b9c036c72f44e",
+    "semantic_hash": "aaab838638fd8be1c95b9c036c72f44e"
+  },
+  "migrations/001_multitenant.sql": {
+    "mtime": 1795366956.6087236,
+    "seen": 1795368275.137391,
+    "ast_hash": "8dc74feac96e71755ef8c607dbe2a9cb",
+    "semantic_hash": "8dc74feac96e71755ef8c607dbe2a9cb"
+  },
+  "package.json": {
+    "mtime": 1795313397.1199439,
+    "seen": 1795368275.137391,
+    "ast_hash": "d47e20fb1995ef06dfceea9379c81859",
+    "semantic_hash": "d47e20fb1995ef06dfceea9379c81859"
+  },
+  "public/js/genealogia.js": {
+    "mtime": 1795340232.6634865,
+    "seen": 1795368275.137392,
+    "ast_hash": "419cab7ea1b160c55d739e58fd534a95",
+    "semantic_hash": "419cab7ea1b160c55d739e58fd534a95"
+  },
+  "public/js/header-utils.js": {
+    "mtime": 1795340151.8597784,
+    "seen": 1795368275.137392,
+    "ast_hash": "9893af8bca8e9920740ec72e03600aec",
+    "semantic_hash": "9893af8bca8e9920740ec72e03600aec"
+  },
+  "public/js/sidebar.js": {
+    "mtime": 1795368134.628937,
+    "seen": 1795368275.137393,
+    "ast_hash": "ac2c8335fa7aec397889a6e696dd539a",
+    "semantic_hash": "ac2c8335fa7aec397889a6e696dd539a"
+  },
+  "romaneio.db.sql": {
+    "mtime": 1792099498.0678022,
+    "seen": 1795368275.137393,
+    "ast_hash": "09bdc6c8cf276920c72192f4d3af9142",
+    "semantic_hash": "09bdc6c8cf276920c72192f4d3af9142"
+  },
+  "schema.sql": {
+    "mtime": 1792099498.0679533,
+    "seen": 1795368275.137394,
+    "ast_hash": "0bd4af6fee493a4a95e0cbd1ed7a0641",
+    "semantic_hash": "0bd4af6fee493a4a95e0cbd1ed7a0641"
+  },
+  "scripts/create-tenant.js": {
+    "mtime": 1795366755.7979496,
+    "seen": 1795368275.137394,
+    "ast_hash": "37f034290f195f6911b2563811c728b1",
+    "semantic_hash": "37f034290f195f6911b2563811c728b1"
+  },
+  "seed_data.sql": {
+    "mtime": 1792099498.068004,
+    "seen": 1795368275.137394,
+    "ast_hash": "b2fe08a07293877467ff3766bb75e9e7",
+    "semantic_hash": "b2fe08a07293877467ff3766bb75e9e7"
+  },
+  "seed_genealogia.js": {
+    "mtime": 1792099498.0680604,
+    "seen": 1795368275.137395,
+    "ast_hash": "e4f45a79d1c54e5fc2f31315e4fc342f",
+    "semantic_hash": "e4f45a79d1c54e5fc2f31315e4fc342f"
+  },
+  "seed_manejo.js": {
+    "mtime": 1792099498.0681121,
+    "seen": 1795368275.137395,
+    "ast_hash": "c830a4ffa9159403323f1d7f857372f7",
+    "semantic_hash": "c830a4ffa9159403323f1d7f857372f7"
+  },
+  "server.backup.js": {
+    "mtime": 1792099498.068208,
+    "seen": 1795368275.1373959,
+    "ast_hash": "17d92ab6424a667145d8f374a4f164fd",
+    "semantic_hash": "17d92ab6424a667145d8f374a4f164fd"
+  },
+  "server.js": {
+    "mtime": 1795368134.6287842,
+    "seen": 1795368275.1373959,
+    "ast_hash": "c9c983e1910049edc7e75b4189070cbf",
+    "semantic_hash": "c9c983e1910049edc7e75b4189070cbf"
+  },
+  "server_snippet.js": {
+    "mtime": 1792099498.068424,
+    "seen": 1795368275.137397,
+    "ast_hash": "51ed6b0c6c5974bfaf18955bacc37d98",
+    "semantic_hash": "51ed6b0c6c5974bfaf18955bacc37d98"
+  },
+  "src/routes/dashboardRoutes.js": {
+    "mtime": 1792099498.0685458,
+    "seen": 1795368275.137397,
+    "ast_hash": "07182a97e4af7fa74656bf6f4d2150f0",
+    "semantic_hash": "07182a97e4af7fa74656bf6f4d2150f0"
+  },
+  "supabase_schema.sql": {
+    "mtime": 1795368134.6507187,
+    "seen": 1795368275.137398,
+    "ast_hash": "f2647a10d384c127660fc6faa9914d97",
+    "semantic_hash": "f2647a10d384c127660fc6faa9914d97"
+  },
+  "test_api_bois.js": {
+    "mtime": 1792099498.068602,
+    "seen": 1795368275.137398,
+    "ast_hash": "0f6481b42c99ba059a2ec18bb9b972f5",
+    "semantic_hash": "0f6481b42c99ba059a2ec18bb9b972f5"
+  },
+  "test_crud_baixas.js": {
+    "mtime": 1792099498.0686593,
+    "seen": 1795368275.137398,
+    "ast_hash": "51a8a56e0a6c0c35c6436da9164fecdc",
+    "semantic_hash": "51a8a56e0a6c0c35c6436da9164fecdc"
+  },
+  "test_crud_vacinas.js": {
+    "mtime": 1792099498.0687337,
+    "seen": 1795368275.137399,
+    "ast_hash": "57bd42dcad801cccb3d9809587fe1955",
+    "semantic_hash": "57bd42dcad801cccb3d9809587fe1955"
+  },
+  "test_delete.ps1": {
+    "mtime": 1792099498.0687866,
+    "seen": 1795368275.137399,
+    "ast_hash": "73ba419a62449959985bdb4f3cfc97ad",
+    "semantic_hash": "73ba419a62449959985bdb4f3cfc97ad"
+  },
+  "test_full_delete_flow.js": {
+    "mtime": 1792099498.068845,
+    "seen": 1795368275.1374002,
+    "ast_hash": "fe6bf11a7581a66660d3979e3d6c9db0",
+    "semantic_hash": "fe6bf11a7581a66660d3979e3d6c9db0"
+  },
+  "test_migration_verification.js": {
+    "mtime": 1792099498.0689209,
+    "seen": 1795368275.1374002,
+    "ast_hash": "ca00d02f4d27e2c8c2de8b330aa5de59",
+    "semantic_hash": "ca00d02f4d27e2c8c2de8b330aa5de59"
+  },
+  "test_post_vacina.js": {
+    "mtime": 1792099498.0689745,
+    "seen": 1795368275.137401,
+    "ast_hash": "a3d14a19b180dc684decb4c9e582e8aa",
+    "semantic_hash": "a3d14a19b180dc684decb4c9e582e8aa"
+  },
+  "test_vaccine_lists.js": {
+    "mtime": 1792099498.069038,
+    "seen": 1795368275.137401,
+    "ast_hash": "d9ff8c0219f4c157e0c8512ed1f238fd",
+    "semantic_hash": "d9ff8c0219f4c157e0c8512ed1f238fd"
+  },
+  "test_vacinas_api.js": {
+    "mtime": 1792099498.0690978,
+    "seen": 1795368275.137402,
+    "ast_hash": "51fab05c10eb71c0cf3a54949f419a8a",
+    "semantic_hash": "51fab05c10eb71c0cf3a54949f419a8a"
+  },
+  "tests/tenant-isolation.test.js": {
+    "mtime": 1795368171.3632567,
+    "seen": 1795368275.137402,
+    "ast_hash": "ec71a709aa641984e37a5f95495bada6",
+    "semantic_hash": "ec71a709aa641984e37a5f95495bada6"
+  },
+  "update_valor_kg.js": {
+    "mtime": 1792099498.069201,
+    "seen": 1795368275.137402,
+    "ast_hash": "f930acb641a8343ed3f1e532f8aff78e",
+    "semantic_hash": "f930acb641a8343ed3f1e532f8aff78e"
+  },
+  "verify_api.js": {
+    "mtime": 1792099498.0692756,
+    "seen": 1795368275.1374028,
+    "ast_hash": "c8547bbe67693a121208087f5546a927",
+    "semantic_hash": "c8547bbe67693a121208087f5546a927"
+  },
+  "verify_dashboard.js": {
+    "mtime": 1792099498.0693374,
+    "seen": 1795368275.1374028,
+    "ast_hash": "b553f5eb140ae52b407ac186d5c5d306",
+    "semantic_hash": "b553f5eb140ae52b407ac186d5c5d306"
+  },
+  "verify_genealogia.js": {
+    "mtime": 1792099498.0694058,
+    "seen": 1795368275.137404,
+    "ast_hash": "b0a37335627ad82db9b5ce052a0f7f15",
+    "semantic_hash": "b0a37335627ad82db9b5ce052a0f7f15"
+  },
+  "REINICIAR_SERVIDOR.md": {
+    "mtime": 1792099497.266033,
+    "seen": 1795368275.137404,
+    "ast_hash": "7760e8b21953db240b5e408fae52ec9c",
+    "semantic_hash": "7760e8b21953db240b5e408fae52ec9c"
+  },
+  "SOLUCAO_VACINAS.md": {
+    "mtime": 1792099497.2660923,
+    "seen": 1795368275.137405,
+    "ast_hash": "f58b30342618335addfee523bebdb92a",
+    "semantic_hash": "f58b30342618335addfee523bebdb92a"
+  },
+  "public/baixas.html": {
+    "mtime": 1795340151.8460917,
+    "seen": 1795368275.1374059,
+    "ast_hash": "3dbf1221df990450c9c6bc0543e6c7c4",
+    "semantic_hash": "3dbf1221df990450c9c6bc0543e6c7c4"
+  },
+  "public/bovinos.html": {
+    "mtime": 1795340204.8686159,
+    "seen": 1795368275.1374059,
+    "ast_hash": "70a7c8a1f7ce491aacc2047e7cdc2655",
+    "semantic_hash": "70a7c8a1f7ce491aacc2047e7cdc2655"
+  },
+  "public/dashboard.html": {
+    "mtime": 1795366889.9372096,
+    "seen": 1795368275.1374059,
+    "ast_hash": "58eeff6bd0c0340392f43e5c1979ced9",
+    "semantic_hash": "58eeff6bd0c0340392f43e5c1979ced9"
+  },
+  "public/dieta.html": {
+    "mtime": 1795340151.8495057,
+    "seen": 1795368275.137407,
+    "ast_hash": "840deb171d78075fccbae6040ccd92ba",
+    "semantic_hash": "840deb171d78075fccbae6040ccd92ba"
+  },
+  "public/fazendas.html": {
+    "mtime": 1795340151.850096,
+    "seen": 1795368275.137407,
+    "ast_hash": "442e8b0db788d3642480e469936af1b0",
+    "semantic_hash": "442e8b0db788d3642480e469936af1b0"
+  },
+  "public/genealogia.html": {
+    "mtime": 1795340151.850787,
+    "seen": 1795368275.137408,
+    "ast_hash": "047d7fe79702f4c4f3a15813b8977659",
+    "semantic_hash": "047d7fe79702f4c4f3a15813b8977659"
+  },
+  "public/historico.html": {
+    "mtime": 1795340151.8516793,
+    "seen": 1795368275.137408,
+    "ast_hash": "85da387b706b54d9a559214b1ee9a1ec",
+    "semantic_hash": "85da387b706b54d9a559214b1ee9a1ec"
+  },
+  "public/historico_gmp.html": {
+    "mtime": 1795340151.8526204,
+    "seen": 1795368275.137408,
+    "ast_hash": "075935075e96ae326d0cad916cfb901c",
+    "semantic_hash": "075935075e96ae326d0cad916cfb901c"
+  },
+  "public/index.html": {
+    "mtime": 1795340151.8530552,
+    "seen": 1795368275.137409,
+    "ast_hash": "ddf06565fb2b328613ef9f0b627df733",
+    "semantic_hash": "ddf06565fb2b328613ef9f0b627df733"
+  },
+  "public/manejo.html": {
+    "mtime": 1795340151.8543487,
+    "seen": 1795368275.137409,
+    "ast_hash": "4c57e1dc159decfb82a5ae289a6b3bcc",
+    "semantic_hash": "4c57e1dc159decfb82a5ae289a6b3bcc"
+  },
+  "public/pastos.html": {
+    "mtime": 1795340151.8551438,
+    "seen": 1795368275.1374102,
+    "ast_hash": "9884dbae56d93969f922d2d4bcc9df15",
+    "semantic_hash": "9884dbae56d93969f922d2d4bcc9df15"
+  },
+  "public/perspectiva_peso.html": {
+    "mtime": 1795340151.8560715,
+    "seen": 1795368275.1374102,
+    "ast_hash": "9cc69ed1359178b55b59ba9501aed980",
+    "semantic_hash": "9cc69ed1359178b55b59ba9501aed980"
+  },
+  "public/usuarios.html": {
+    "mtime": 1795340151.856664,
+    "seen": 1795368275.137411,
+    "ast_hash": "7e46f8a9cfdec6cf452292c30ce50345",
+    "semantic_hash": "7e46f8a9cfdec6cf452292c30ce50345"
+  },
+  "public/vacinas.html": {
+    "mtime": 1795340151.85779,
+    "seen": 1795368275.137411,
+    "ast_hash": "03567d9c986ba61b9b5485968c336089",
+    "semantic_hash": "03567d9c986ba61b9b5485968c336089"
+  }
+}
