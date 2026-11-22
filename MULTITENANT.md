@@ -20,8 +20,10 @@
 - **Nova empresa (cliente):** `node scripts/create-tenant.js "Empresa" usuario "Nome Admin" "senha"`
   (o Admin da empresa cria os demais usuários em *Cadastro de Usuários*).
 - **Suspender / reativar:** `update tenants set active = false where id = 2;`
-- Gestão de empresas é feita por script/SQL de propósito: nenhum perfil "Admin" de cliente tem
-  poder sobre outras empresas.
+- **Tela "Gestão de Empresas"** (`empresas.html`): cadastrar empresa + primeiro Admin, renomear, suspender/reativar.
+  Só aparece para o *dono da plataforma* (`users.is_platform_admin`), flag concedida **apenas por SQL**
+  (migração `002_platform_admin.sql`):  `update users set is_platform_admin = true where username = 'SEU_USUARIO';`
+  Nenhum "Admin" de cliente tem acesso (a API devolve 403). O script `create-tenant.js` continua válido.
 - `username` é **único no sistema todo** (login sem informar empresa).
 - Não existe mais o usuário padrão `admin/admin123`.
 - Sessões antigas (token sem `tid`) são invalidadas: todos precisam logar de novo após o deploy.
