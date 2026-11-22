@@ -48,6 +48,12 @@
             init.headers = headers;
             return nativeFetch(input, init).then(function (res) {
                 if (res.status === 401) goLogin();
+                // Empresa suspensa: encerra a sessão (403 de permissão de Admin NÃO desloga)
+                if (res.status === 403) {
+                    res.clone().json().then(function (j) {
+                        if (j && /suspensa/i.test(j.error || '')) goLogin();
+                    }).catch(function () {});
+                }
                 return res;
             });
         }
