@@ -2,124 +2,87 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Romaneio - Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0c2559">
+    <title>Romaneio - Sistema de Controle | Login</title>
+    <link rel="icon" type="image/png" href="imagens/favicon-32.png">
+    <link rel="apple-touch-icon" href="imagens/apple-touch-icon.png">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="auth-container">
-        <!-- LOGIN SECTION -->
         <div id="login-card" class="auth-card">
-            <h2>Entrar no Romaneio</h2>
-            <form id="login-form">
+            <img class="auth-logo" src="imagens/logo-app.png" alt="Romaneio" width="92" height="92">
+            <div class="auth-brand">Romaneio</div>
+            <div class="auth-tagline">Sistema de controle</div>
+
+            <div id="login-error" class="auth-error hidden" role="alert"></div>
+
+            <form id="login-form" autocomplete="on">
                 <div class="form-group">
                     <label for="login-username">Usuário</label>
-                    <input type="text" id="login-username" required>
+                    <input type="text" id="login-username" name="username" autocomplete="username" autocapitalize="none" required>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Senha</label>
-                    <input type="password" id="login-password" required>
+                    <input type="password" id="login-password" name="password" autocomplete="current-password" required>
                 </div>
-                <button type="submit" class="btn-primary">Entrar</button>
+                <button type="submit" id="login-submit" class="btn-primary">Entrar</button>
             </form>
-            <div class="auth-switch">
-                 <!-- Não tem conta? <a onclick="toggleAuth()">Cadastre-se</a>-->
-            </div>
-        </div>
-
-        <!-- SIGNUP SECTION -->
-        <div id="signup-card" class="auth-card hidden">
-            <h2>Criar Conta</h2>
-            <form id="signup-form">
-                <div class="form-group">
-                    <label for="signup-name">Nome Completo</label>
-                    <input type="text" id="signup-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="signup-username">Usuário</label>
-                    <input type="text" id="signup-username" required>
-                </div>
-                <div class="form-group">
-                    <label for="signup-password">Senha</label>
-                    <input type="password" id="signup-password" required>
-                </div>
-                <div class="form-group">
-                    <label for="signup-profile">Perfil</label>
-                    <select id="signup-profile">
-                        <option value="Usuário">Usuário</option>
-                        <option value="Admin">Admin</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-primary">Cadastrar</button>
-            </form>
-            <div class="auth-switch">
-                Já tem conta? <a onclick="toggleAuth()">Faça Login</a>
-            </div>
         </div>
     </div>
 
     <script>
-        function toggleAuth() {
-            document.getElementById('login-card').classList.toggle('hidden');
-            document.getElementById('signup-card').classList.toggle('hidden');
+        // Sessão ativa? Vai direto para o dashboard.
+        try {
+            const u = JSON.parse(localStorage.getItem('user') || 'null');
+            if (u && u.token) window.location.replace('dashboard.html');
+        } catch (e) { localStorage.removeItem('user'); }
+
+        const errBox = document.getElementById('login-error');
+        function showError(msg) {
+            errBox.textContent = msg;
+            errBox.classList.remove('hidden');
         }
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('login-username').value;
+            errBox.classList.add('hidden');
+            const btn = document.getElementById('login-submit');
+            const username = document.getElementById('login-username').value.trim();
             const password = document.getElementById('login-password').value;
 
+            btn.disabled = true;
+            btn.textContent = 'Entrando...';
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                const data = await res.json();
-                if (res.ok) {
-                    localStorage.setItem('user', JSON.stringify(data.user));
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.token) {
+                    localStorage.setItem('user', JSON.stringify(Object.assign({}, data.user, { token: data.token })));
                     window.location.href = 'dashboard.html';
                 } else {
-                    alert(data.error);
+                    showError(data.error || 'Não foi possível entrar.');
                 }
             } catch (err) {
                 console.error(err);
-                alert('Erro ao conectar ao servidor.');
-            }
-        });
-
-        document.getElementById('signup-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('signup-name').value;
-            const username = document.getElementById('signup-username').value;
-            const password = document.getElementById('signup-password').value;
-            const profile = document.getElementById('signup-profile').value;
-
-            try {
-                const res = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, password, profile })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    alert('Cadastro realizado com sucesso! Faça login.');
-                    toggleAuth();
-                } else {
-                    alert(data.error);
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Erro ao conectar ao servidor.');
+                showError('Erro ao conectar ao servidor.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Entrar';
             }
         });
     </script>
-    <a href="https://wa.me/5534996933131" target="_blank" class="whatsapp-float">
+
+    <a href="https://wa.me/5534996933131" target="_blank" rel="noopener" class="whatsapp-float" aria-label="WhatsApp">
         <img src="imagens/icone_whatsapp.png" alt="WhatsApp">
     </a>
 
     <footer class="footer-bottom">
-        2026 - Todos os direitos reservados - <a href="http://www.imaxsi.com" target="_blank">Desenvolvido por Imax Soluções Integradas</a>
+        2026 - Todos os direitos reservados - <a href="http://www.imaxsi.com" target="_blank" rel="noopener">Desenvolvido por Imax Soluções Integradas</a>
     </footer>
 </body>
 </html>

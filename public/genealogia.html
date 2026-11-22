@@ -2,172 +2,173 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Romaneio - Genealogia</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="js/sidebar.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
     <!-- JSPDF for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
-        .form-section {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
         .tree-viewport {
             width: 100%;
-            height: 600px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background: #f9f9f9;
+            height: 620px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background:
+                radial-gradient(circle at 1px 1px, #d5deee 1px, transparent 0) 0 0 / 22px 22px,
+                linear-gradient(180deg, #f8faff, #eef3fb);
             overflow: hidden;
             position: relative;
         }
-        .alert {
-            padding: 1rem;
-            border-radius: 4px;
-            margin-top: 1rem;
+        .tree-empty {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem;
+            color: var(--text-secondary); text-align: center; padding: 1rem; font-size: .95rem;
         }
-        .alert-danger { background: #ffebee; color: #c62828; }
-
+        .tree-empty i { font-size: 2.4rem; color: var(--steel-300); }
+        .tree-controls {
+            position: absolute; right: 12px; top: 12px;
+            display: flex; flex-direction: column; gap: 6px; z-index: 2;
+        }
+        .tree-controls button {
+            width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border-color);
+            background: #fff; color: var(--navy-800); cursor: pointer; box-shadow: var(--shadow-sm);
+            font-size: .95rem; transition: all .15s;
+        }
+        .tree-controls button:hover { background: var(--primary-color); color: #fff; }
+        .tree-legend {
+            position: absolute; left: 12px; bottom: 10px; right: 12px; z-index: 2;
+            display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center;
+            font-size: .78rem; color: var(--text-secondary);
+            background: rgba(255,255,255,.85); backdrop-filter: blur(4px);
+            border-radius: 10px; padding: .4rem .7rem; border: 1px solid var(--border-color);
+        }
+        .tree-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+        .tree-legend .tree-hint { margin-left: auto; }
+        .alert { padding: 1rem; border-radius: 12px; margin-top: 1rem; }
+        .alert-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .row-actions { display: flex; gap: .4rem; justify-content: center; flex-wrap: wrap; }
+        .inline-field { display: flex; gap: .5rem; align-items: stretch; }
+        .inline-field input { flex: 1; min-width: 0; }
+        .inline-field .btn-cancel { min-width: 0; padding: 0 1rem; }
+        .consang-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end; }
+        .search-row { display: flex; gap: .6rem; align-items: flex-end; }
+        .search-row > div { flex: 1; min-width: 0; }
+        .section-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        @media (max-width: 900px) { .tree-viewport { height: 68vh; min-height: 420px; } .consang-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) {
+            .tree-legend .tree-hint { margin-left: 0; width: 100%; }
+            .section-head > .btn-primary, .search-row .btn-cancel { width: auto; }
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h1>Romaneio</h1>
-                <button id="sidebar-toggle" class="sidebar-toggle-btn">
-                    <i class="fas fa-bars"></i>
-                </button>
-            </div>
-            <ul class="nav-links">
-                <li><a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
-                <li><a href="fazendas.html"><i class="fas fa-layer-group"></i> <span>Fazendas</span></a></li>
-                <li><a href="pastos.html"><i class="fas fa-seedling"></i> <span>Pastos</span></a></li>
-                <li><a href="bovinos.html"><i class="fas fa-paw"></i> <span>Bovinos</span></a></li>
-                <li><a href="manejo.html"><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a></li>
-                <li><a href="historico.html"><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a></li>
-                <li><a href="historico_gmp.html"><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a></li>
-                <li><a href="vacinas.html"><i class="fas fa-syringe"></i> <span>Vacinas</span></a></li>
-                <li><a href="dieta.html"><i class="fas fa-utensils"></i> <span>Dieta</span></a></li>
-                <li><a href="perspectiva_peso.html"><i class="fas fa-chart-pie"></i> <span>Perspectiva de Peso</span></a></li>
-                <li><a href="baixas.html"><i class="fas fa-skull-crossbones"></i> <span>Baixa de Bois</span></a></li>
-                <li><a href="genealogia.html" class="active"><i class="fas fa-dna"></i> <span>Genealogia</span></a></li>
-                <li><a href="usuarios.html"><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a></li>
-            </ul>
-            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> <span>Sair</span></button>
-        </aside>
+        <aside class="sidebar"></aside>
 
         <main class="main-content">
             <div class="table-header">
                 <h2>Árvore Genealógica</h2>
             </div>
-            
-            <div class="info-box" style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 5px;">
-                Selecione um animal para visualizar seus ancestrais.
+
+            <div class="info-box" style="margin-bottom: 1.25rem;">
+                <i class="fas fa-circle-info"></i> Selecione um animal para visualizar seus ancestrais. Toque/clique em um ancestral para abrir a árvore dele.
             </div>
 
             <!-- BUSCA -->
             <div class="form-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-head">
                     <h3>Visualizar Família</h3>
-                    <button onclick="exportTreePDF()" class="btn-primary" style="background-color: #1976d2;">Exportar PDF</button>
+                    <button onclick="exportTreePDF()" class="btn-primary"><i class="fas fa-file-pdf"></i> Exportar PDF</button>
                 </div>
-                <div class="form-grid">
-                    <div class="form-group" style="grid-column: span 2; display: flex; align-items: flex-end; gap: 10px;">
-                        <div style="flex-grow: 1;">
-                            <label>Buscar Animal (Nome ou ID)</label>
-                            <input type="text" id="search-boi" class="form-control" list="bois-list" placeholder="Digite para buscar...">
-                            <datalist id="bois-list"></datalist>
-                        </div>
-                        <button onclick="clearSearch('search-boi')" class="btn-cancel" style="height: 42px;">Limpar</button>
+                <div class="search-row" style="margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="search-boi">Buscar Animal (Nome ou ID)</label>
+                        <input type="text" id="search-boi" class="form-control" list="bois-list" placeholder="Digite para buscar...">
+                        <datalist id="bois-list"></datalist>
                     </div>
+                    <button onclick="clearSearch('search-boi')" class="btn-cancel" style="height: 44px;">Limpar</button>
                 </div>
-                
+
                 <div id="tree-container" class="tree-viewport">
-                    <p style="text-align:center; padding-top: 250px; color: #999;">Selecione um animal para carregar a árvore.</p>
+                    <div class="tree-empty"><i class="fas fa-dna"></i><span>Selecione um animal para carregar a árvore.</span></div>
                 </div>
             </div>
 
             <!-- CADASTRO GENEALOGIA -->
             <div class="form-section">
                 <h3>Cadastro de Genealogia</h3>
-                <p style="font-size: 0.9em; color: #666;">Defina os pais de um animal para construir a árvore.</p>
-                
-            <div class="form-grid">
+                <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 1rem;">Defina os pais de um animal para construir a árvore.</p>
+
+                <div class="form-grid">
                     <div class="form-group">
-                        <label>Filho(a) (Animal Selecionado)</label>
+                        <label for="reg-filho">Filho(a) (Animal Selecionado)</label>
                         <input type="text" id="reg-filho" class="form-control" list="bois-list-reg" onchange="loadParentsForEdit()">
                         <datalist id="bois-list-reg"></datalist>
                     </div>
                     <div class="form-group">
-                        <label>Pai</label>
+                        <label for="reg-pai">Pai</label>
                         <input type="text" id="reg-pai" class="form-control" list="bois-list-reg">
                     </div>
                     <div class="form-group">
-                        <label>Mãe</label>
+                        <label for="reg-mae">Mãe</label>
                         <input type="text" id="reg-mae" class="form-control" list="bois-list-reg">
                     </div>
-                    <div class="form-group" style="display: flex; align-items: flex-end; gap: 10px;">
-                        <button type="button" onclick="clearRegisterForm()" class="btn-cancel">Limpar</button>
-                        <button onclick="saveGenealogy()" class="btn-primary">Salvar Parentesco</button>
-                    </div>
                 </div>
-                <div style="margin-top: 2rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="form-actions">
+                    <button type="button" onclick="clearRegisterForm()" class="btn-cancel">Limpar</button>
+                    <button onclick="saveGenealogy()" class="btn-primary">Salvar Parentesco</button>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <div class="section-head">
                         <h4>Genealogias Cadastradas</h4>
-                        <button onclick="exportGenealogyGridPDF()" class="btn-primary" style="background-color: #1976d2(246, 67%, 41%); padding: 5px 15px; font-size: 0.9em;">Exportar PDF</button>
+                        <button onclick="exportGenealogyGridPDF()" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9em;"><i class="fas fa-file-pdf"></i> Exportar PDF</button>
                     </div>
-                    <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <table class="data-table">
                         <thead>
-                            <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
-                                <th style="padding: 10px; text-align: left;">Filho(a)</th>
-                                <th style="padding: 10px; text-align: left;">Pai</th>
-                                <th style="padding: 10px; text-align: left;">Mãe</th>
-                                <th style="padding: 10px; text-align: center; width: 150px;">Ações</th>
+                            <tr>
+                                <th>Filho(a)</th>
+                                <th>Pai</th>
+                                <th>Mãe</th>
+                                <th style="text-align: center;">Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="genealogia-table-body">
-                            <!-- Populated by JS -->
-                        </tbody>
+                        <tbody id="genealogia-table-body"></tbody>
                     </table>
-                    <!-- Pagination Controls -->
-                    <div id="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem;"></div>
+                    <div id="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;"></div>
                 </div>
             </div>
 
             <!-- CONSANGUINIDADE -->
             <div class="form-section">
                 <h3>Verificar Consanguinidade</h3>
-                <p style="font-size: 0.9em; color: #666;">Simule o acasalamento entre dois animais para detectar ancestrais comuns.</p>
-                
-                <div class="form-grid" style="display: flex; gap: 20px; align-items: flex-end;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Possível Pai</label>
-                        <div style="display: flex; gap: 5px;">
+                <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 1rem;">Simule o acasalamento entre dois animais para detectar ancestrais comuns.</p>
+
+                <div class="consang-grid">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="pag-boi1">Possível Pai</label>
+                        <div class="inline-field">
                             <input type="text" id="pag-boi1" class="form-control" list="bois-list-consang">
-                            <button onclick="clearSearch('pag-boi1')" class="btn-cancel" style="padding: 0 10px;">Limpar</button>
+                            <button onclick="clearSearch('pag-boi1')" class="btn-cancel">Limpar</button>
                         </div>
                     </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>Possível Mãe</label>
-                        <div style="display: flex; gap: 5px;">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label for="pag-boi2">Possível Mãe</label>
+                        <div class="inline-field">
                             <input type="text" id="pag-boi2" class="form-control" list="bois-list-consang">
-                            <button onclick="clearSearch('pag-boi2')" class="btn-cancel" style="padding: 0 10px;">Limpar</button>
+                            <button onclick="clearSearch('pag-boi2')" class="btn-cancel">Limpar</button>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <button onclick="checkConsanguinity()" class="btn-primary" style="height: 42px;">Verificar Compatibilidade</button>
-                    </div>
+                    <button onclick="checkConsanguinity()" class="btn-primary" style="height: 44px;">Verificar Compatibilidade</button>
                 </div>
-                
+
                 <datalist id="bois-list-consang"></datalist>
-                
+
                 <div id="consanguinity-result"></div>
             </div>
         </main>

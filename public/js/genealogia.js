@@ -20,7 +20,7 @@ async function loadBoisAutocomplete() {
         const res = await fetch('/api/bois'); 
         allBois = await res.json();
         
-        const optionsHtml = allBois.map(b => `<option value="${b.name} [${b.id}]" data-id="${b.id}">`).join('');
+        const optionsHtml = allBois.map(b => `<option value="${escapeHtml(b.name)} [${b.id}]">`).join('');
         
         document.getElementById('bois-list').innerHTML = optionsHtml;
         document.getElementById('bois-list-consang').innerHTML = optionsHtml;
@@ -61,7 +61,7 @@ function clearSearch(elementId) {
     
     // Specific behavior if clearing the main search
     if(elementId === 'search-boi') {
-        document.getElementById('tree-container').innerHTML = '<p style="text-align:center; padding-top: 250px; color: #999;">Selecione um animal para carregar a árvore.</p>';
+        document.getElementById('tree-container').innerHTML = '<div class="tree-empty"><i class="fas fa-dna"></i><span>Selecione um animal para carregar a árvore.</span></div>'; treeSvg = null; treeG = null;
     }
 }
 
@@ -78,7 +78,6 @@ async function loadParentsForEdit() {
     // Let's fetch specifically to be safe.
     
     try {
-        const res = await fetch(`/api/bois`); // Ideally /api/bois/:id but we don't have that endpoint implemented cleanly for single get? Actually we do usually or can filter.
         // Wait, current server.js has /api/bois returning all. 
         // Optimization: Find in `allBois` first.
         let boi = allBois.find(b => b.id == id);
@@ -100,7 +99,7 @@ async function saveGenealogy() {
     const maeId = getIdFromInput(maeVal);
     
     if(!filhoId) {
-        alert("Selecione um animal (filho) válido da lista.");
+        showMessage('<span class="toast-title">Atenção</span>Selecione um animal (filho) válido da lista.', 'warning');
         return;
     }
     
@@ -161,7 +160,8 @@ async function saveGenealogy() {
             clearRegisterForm();
             
         } else {
-            alert("Erro ao salvar.");
+            const err = await res.json().catch(() => ({}));
+            showMessage('<span class="toast-title">Erro</span>' + escapeHtml(err.error || 'Erro ao salvar.'), 'error');
         }
     } catch(e) {
         console.error(e);
@@ -222,17 +222,19 @@ function renderGenealogyTable(tbody) {
     const pageData = filteredBois.slice(startIndex, endIndex);
 
     tbody.innerHTML = pageData.map(boi => {
-        const paiName = getNameFromId(boi.pai_id) || '<span style="color:#ccc;">-</span>';
-        const maeName = getNameFromId(boi.mae_id) || '<span style="color:#ccc;">-</span>';
+        const paiName = escapeHtml(getNameFromId(boi.pai_id)) || '<span style="color:#ccc;">-</span>';
+        const maeName = escapeHtml(getNameFromId(boi.mae_id)) || '<span style="color:#ccc;">-</span>';
         
         return `
             <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">${boi.name} <small style="color:#666;">[${boi.id}]</small></td>
+                <td style="padding: 10px;">${escapeHtml(boi.name)} <small style="color:#666;">[${boi.id}]</small></td>
                 <td style="padding: 10px;">${paiName}</td>
                 <td style="padding: 10px;">${maeName}</td>
                 <td style="padding: 10px; text-align: center;">
-                    <button class="btn-cancel" style="padding: 2px 8px; font-size: 0.8rem; margin-right: 5px;" onclick="editGenealogy(${boi.id})">Editar</button>
-                    <button class="btn-cancel" style="padding: 2px 8px; font-size: 0.8rem; background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;" onclick="deleteGenealogy(${boi.id})">Excluir</button>
+                    <div class="row-actions">
+                        <button class="btn-cancel" style="min-width:0; padding: 4px 12px; font-size: 0.85rem;" onclick="editGenealogy(${boi.id})">Editar</button>
+                        <button class="btn-cancel" style="min-width:0; padding: 4px 12px; font-size: 0.85rem; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;" onclick="deleteGenealogy(${boi.id})">Excluir</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -323,7 +325,7 @@ async function checkConsanguinity() {
     const id2 = getIdFromInput(p2Input.value);
     
     if (!id1 || !id2) {
-        alert("Selecione dois animais válidos da lista.");
+        showMessage('<span class="toast-title">Atenção</span>Selecione dois animais válidos da lista.', 'warning');
         return;
     }
     
@@ -340,7 +342,7 @@ async function checkConsanguinity() {
             
             resultDiv.innerHTML = `<div class="alert alert-danger">
                 <strong>Alerta de Consanguinidade!</strong><br>
-                Ancestrais comuns encontrados: ${names.join(', ')}
+                Ancestrais comuns encontrados: ${names.map(escapeHtml).join(', ')}
             </div>`;
         } else {
              resultDiv.innerHTML = `<div class="alert alert-success">
@@ -349,123 +351,227 @@ async function checkConsanguinity() {
         }
     } catch (e) {
         console.error(e);
-        alert("Erro ao verificar consanguinidade");
+        showMessage('<span class="toast-title">Erro</span>Erro ao verificar consanguinidade.', 'error');
     }
 }
 
-// Tree Visualization with D3
+// ---------------------------------------------------------------------------
+// Árvore genealógica (D3) – cartões em SVG, zoom/pan (mouse e toque), ajuste à tela
+// Todo o estilo é feito com atributos SVG (sem CSS externo) para a exportação em PDF.
+// ---------------------------------------------------------------------------
+const TREE_COLORS = {
+    M: { main: '#2563eb', soft: '#dbeafe', text: '#1e3a8a', symbol: '♂' },
+    F: { main: '#db2777', soft: '#fce7f3', text: '#9d174d', symbol: '♀' },
+    U: { main: '#64748b', soft: '#e2e8f0', text: '#334155', symbol: '?' }
+};
+const NODE_W = 210, NODE_H = 70, LEVEL_GAP = 290, SIBLING_GAP = 92;
+const FONT = "Inter, Arial, Helvetica, sans-serif";
+let treeZoom = null, treeSvg = null, treeG = null;
+
+const ROLE_LABELS = [
+    { M: 'Animal', F: 'Animal', U: 'Animal' },
+    { M: 'Pai', F: 'Mãe', U: 'Progenitor' },
+    { M: 'Avô', F: 'Avó', U: 'Ancestral' },
+    { M: 'Bisavô', F: 'Bisavó', U: 'Ancestral' },
+    { M: 'Trisavô', F: 'Trisavó', U: 'Ancestral' }
+];
+
+function truncate(text, max) {
+    text = String(text == null ? '' : text);
+    return text.length > max ? text.slice(0, max - 1) + '…' : text;
+}
+
 async function loadTree(boiId) {
     const container = document.getElementById('tree-container');
-    container.innerHTML = 'Carregando árvore...';
-    
+    container.innerHTML = '<div class="tree-empty"><i class="fas fa-spinner fa-spin"></i> Carregando árvore...</div>';
+
     try {
         const res = await fetch(`/api/genealogia/arvore/${boiId}`);
-        if (!res.ok) throw new Error("Boi not found");
+        if (!res.ok) throw new Error('Animal não encontrado');
         const data = await res.json();
-        
-        const buildD3Data = (node) => {
+
+        const build = (node) => {
             if (!node) return null;
             const d3Node = {
+                id: node.id,
                 name: node.name,
-                attributes: {
-                    Brinco: node.brinco,
-                    Sexo: node.sexo,
-                    Geração: node.generation
-                },
+                brinco: node.brinco,
+                sexo: node.sexo,
+                generation: node.generation,
                 children: []
             };
-            
             if (node.parents) {
-                if (node.parents.father) d3Node.children.push(buildD3Data(node.parents.father));
-                if (node.parents.mother) d3Node.children.push(buildD3Data(node.parents.mother));
+                if (node.parents.father) d3Node.children.push(build(node.parents.father));
+                if (node.parents.mother) d3Node.children.push(build(node.parents.mother));
             }
             return d3Node;
         };
-        
-        const treeData = buildD3Data(data);
-        renderTree(treeData);
-        
+
+        renderTree(build(data));
     } catch (e) {
-        container.innerHTML = `<div style="color:red">Erro ao carregar árvore: ${e.message}</div>`;
+        container.innerHTML = `<div class="tree-empty" style="color:#dc2626">Erro ao carregar árvore: ${escapeHtml(e.message)}</div>`;
     }
 }
 
 function renderTree(treeData) {
-    document.getElementById('tree-container').innerHTML = ''; // Clear
-    let i = 0;
-    
-    // Dimensions
-    const width = 800;
-    const height = 600;
-    
-    // Create SVG and Group first
-    const svg = d3.select("#tree-container").append("svg")
-        .attr("width", width)
-        .attr("height", height);
+    const container = document.getElementById('tree-container');
+    container.innerHTML = '';
 
-    const outerG = svg.append("g").attr("transform", "translate(0,0)");
-    const g = outerG.append("g");
+    const root = d3.hierarchy(treeData, d => d.children);
+    d3.tree().nodeSize([SIBLING_GAP, LEVEL_GAP])(root);
 
-    // Zoom behavior
-    const zoom = d3.zoom().on("zoom", function (event) {
-        g.attr("transform", event.transform);
-    });
+    const hasAncestors = root.descendants().length > 1;
 
-    // Attach zoom and set initial transform
-    svg.call(zoom)
-       .call(zoom.transform, d3.zoomIdentity.translate(100, 50));
+    treeSvg = d3.select(container).append('svg')
+        .attr('xmlns', 'http://www.w3.org/2000/svg')
+        .attr('width', '100%')
+        .attr('height', '100%')
+        .style('display', 'block')
+        .style('touch-action', 'none')
+        .style('cursor', 'grab');
 
+    const defs = treeSvg.append('defs');
+    const shadow = defs.append('filter').attr('id', 'card-shadow').attr('x', '-20%').attr('y', '-20%').attr('width', '140%').attr('height', '160%');
+    shadow.append('feDropShadow').attr('dx', 0).attr('dy', 4).attr('stdDeviation', 5).attr('flood-color', '#0c2559').attr('flood-opacity', 0.18);
 
-    const treeMap = d3.tree().size([height - 100, width - 200]);
-    const root = d3.hierarchy(treeData, function(d) { return d.children; });
-    
-    const treeDataNodes = treeMap(root);
-    
-    const nodes = treeDataNodes.descendants();
-    const links = treeDataNodes.descendants().slice(1);
+    treeG = treeSvg.append('g').attr('class', 'tree-root');
 
-    nodes.forEach(function(d){ d.y = d.depth * 180 });
+    // Ligações (curvas suaves, da esquerda para a direita)
+    const linkGen = d3.linkHorizontal().x(d => d.y).y(d => d.x);
+    treeG.append('g').attr('fill', 'none').selectAll('path')
+        .data(root.links())
+        .enter().append('path')
+        .attr('d', d => linkGen({
+            source: { x: d.source.x, y: d.source.y + NODE_W },
+            target: { x: d.target.x, y: d.target.y }
+        }))
+        .attr('stroke', d => (TREE_COLORS[d.target.data.sexo] || TREE_COLORS.U).main)
+        .attr('stroke-opacity', 0.55)
+        .attr('stroke-width', 2.5)
+        .attr('stroke-linecap', 'round');
 
-    const node = g.selectAll('g.node')
-        .data(nodes, function(d) { return d.id || (d.id = ++i); });
-
-    const nodeEnter = node.enter().append('g')
-        .attr('class', 'node')
-        .attr("transform", function(d) {
-            return "translate(" + d.y + "," + d.x + ")";
+    // Cartões
+    const nodes = treeG.append('g').selectAll('g')
+        .data(root.descendants())
+        .enter().append('g')
+        .attr('transform', d => `translate(${d.y},${d.x - NODE_H / 2})`)
+        .style('cursor', d => d.depth === 0 ? 'default' : 'pointer')
+        .on('click', (event, d) => {
+            if (d.depth === 0 || !d.data.id) return;
+            const input = document.getElementById('search-boi');
+            input.value = `${d.data.name} [${d.data.id}]`;
+            loadTree(d.data.id);
         });
 
-    nodeEnter.append('circle')
-        .attr('class', 'node')
-        .attr('r', 10)
-        .style("fill", d => d.data.attributes.Sexo === 'F' ? "#ffb6c1" : "#add8e6") // Pink for female, Blue for male
-        .style("stroke", "#333");
+    nodes.each(function (d) {
+        const g = d3.select(this);
+        const c = TREE_COLORS[d.data.sexo] || TREE_COLORS.U;
+        const isRoot = d.depth === 0;
+        const role = (ROLE_LABELS[d.depth] || ROLE_LABELS[4])[d.data.sexo] || 'Ancestral';
 
-    nodeEnter.append('text')
-        .attr("dy", ".35em")
-        .attr("x", function(d) {
-            return d.children || d._children ? -13 : 13;
-        })
-        .attr("text-anchor", function(d) {
-            return d.children || d._children ? "end" : "start";
-        })
-        .text(function(d) { return d.data.name; });
+        g.append('rect')
+            .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 16)
+            .attr('fill', isRoot ? '#0c2559' : '#ffffff')
+            .attr('stroke', isRoot ? '#0c2559' : c.main)
+            .attr('stroke-width', isRoot ? 0 : 1.5)
+            .attr('filter', 'url(#card-shadow)');
 
-    const link = g.selectAll('path.link')
-        .data(links, function(d) { return d.id; });
+        // Faixa lateral colorida
+        if (!isRoot) {
+            g.append('rect').attr('x', 0).attr('y', 14).attr('width', 5).attr('height', NODE_H - 28).attr('rx', 2.5).attr('fill', c.main);
+        }
 
-    const linkEnter = link.enter().insert('path', "g")
-        .attr("class", "link")
-        .attr("d", function(d){
-            return "M" + d.y + "," + d.x
-             + "C" + (d.y + d.parent.y) / 2 + "," + d.x
-             + " " + (d.y + d.parent.y) / 2 + "," + d.parent.x
-             + " " + d.parent.y + "," + d.parent.x;
-         })
-         .style("fill", "none")
-         .style("stroke", "#ccc")
-         .style("stroke-width", "2px");
+        // Selo de sexo
+        g.append('circle').attr('cx', 34).attr('cy', NODE_H / 2).attr('r', 19)
+            .attr('fill', isRoot ? 'rgba(255,255,255,0.14)' : c.soft);
+        g.append('text').attr('x', 34).attr('y', NODE_H / 2 + 1)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-family', FONT).attr('font-size', 22).attr('font-weight', 700)
+            .attr('fill', isRoot ? '#ffffff' : c.main)
+            .text(c.symbol);
+
+        // Papel (Pai / Mãe / Avô...)
+        g.append('text').attr('x', 62).attr('y', 20)
+            .attr('font-family', FONT).attr('font-size', 9.5).attr('font-weight', 700).attr('letter-spacing', 1)
+            .attr('fill', isRoot ? '#93c5fd' : c.main)
+            .text(role.toUpperCase());
+
+        // Nome
+        g.append('text').attr('x', 62).attr('y', 39)
+            .attr('font-family', FONT).attr('font-size', 14).attr('font-weight', 700)
+            .attr('fill', isRoot ? '#ffffff' : '#0f1f3d')
+            .text(truncate(d.data.name, 17));
+
+        // Brinco / geração
+        const meta = [d.data.brinco ? `Brinco ${d.data.brinco}` : null, d.data.generation ? `Ger. ${d.data.generation}` : null]
+            .filter(Boolean).join('  •  ');
+        g.append('text').attr('x', 62).attr('y', 56)
+            .attr('font-family', FONT).attr('font-size', 10.5)
+            .attr('fill', isRoot ? '#bfdbfe' : '#64748b')
+            .text(truncate(meta || 'Sem brinco', 26));
+
+        g.append('title').text(`${d.data.name}${d.data.brinco ? ' – Brinco ' + d.data.brinco : ''}`);
+    });
+
+    // Zoom / pan (mouse, trackpad e toque com pinça)
+    treeZoom = d3.zoom()
+        .scaleExtent([0.25, 2.5])
+        .on('start', () => treeSvg.style('cursor', 'grabbing'))
+        .on('end', () => treeSvg.style('cursor', 'grab'))
+        .on('zoom', (event) => treeG.attr('transform', event.transform));
+    treeSvg.call(treeZoom).on('dblclick.zoom', null);
+
+    addTreeControls(container, hasAncestors);
+    fitTree(false);
 }
+
+function addTreeControls(container, hasAncestors) {
+    const controls = document.createElement('div');
+    controls.className = 'tree-controls';
+    controls.innerHTML = `
+        <button type="button" title="Aproximar" aria-label="Aproximar" data-act="in"><i class="fas fa-plus"></i></button>
+        <button type="button" title="Afastar" aria-label="Afastar" data-act="out"><i class="fas fa-minus"></i></button>
+        <button type="button" title="Ajustar à tela" aria-label="Ajustar à tela" data-act="fit"><i class="fas fa-expand"></i></button>`;
+    controls.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const act = btn.dataset.act;
+        if (act === 'fit') fitTree(true);
+        else treeSvg.transition().duration(250).call(treeZoom.scaleBy, act === 'in' ? 1.3 : 1 / 1.3);
+    });
+    container.appendChild(controls);
+
+    const legend = document.createElement('div');
+    legend.className = 'tree-legend';
+    legend.innerHTML = `
+        <span><i style="background:#2563eb"></i> Macho</span>
+        <span><i style="background:#db2777"></i> Fêmea</span>
+        <span class="tree-hint">${hasAncestors ? 'Arraste para mover • pinça/scroll para zoom • toque num ancestral para abri-lo' : 'Este animal ainda não tem pais cadastrados'}</span>`;
+    container.appendChild(legend);
+}
+
+function fitTree(animate) {
+    if (!treeSvg || !treeG) return;
+    const svgNode = treeSvg.node();
+    const box = treeG.node().getBBox();
+    const w = svgNode.clientWidth || 800;
+    const h = svgNode.clientHeight || 500;
+    const padL = 24, padR = 64, padT = 24, padB = 60; // reserva espaço p/ controles e legenda
+    let scale = Math.min((w - padL - padR) / box.width, (h - padT - padB) / box.height, 1.15);
+    let tx, ty;
+    if (scale < 0.55) {
+        // Telas pequenas: mantém legibilidade (zoom mínimo) começando pelo animal; o usuário arrasta
+        scale = 0.55;
+        tx = padL - box.x * scale;
+    } else {
+        tx = padL + (w - padL - padR - box.width * scale) / 2 - box.x * scale;
+    }
+    ty = padT + (h - padT - padB - box.height * scale) / 2 - box.y * scale;
+    const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+    (animate ? treeSvg.transition().duration(450) : treeSvg).call(treeZoom.transform, t);
+}
+
+window.addEventListener('resize', () => { if (treeSvg) fitTree(false); });
 
 // --- PDF Exports ---
 
@@ -481,7 +587,7 @@ function getTimestampStr() {
 
 function exportGenealogyGridPDF() {
     if (!filteredBois || filteredBois.length === 0) {
-        alert("Não há dados para exportar.");
+        showMessage('<span class="toast-title">Atenção</span>Não há dados para exportar.', 'warning');
         return;
     }
 
@@ -513,61 +619,66 @@ function exportGenealogyGridPDF() {
 }
 
 async function exportTreePDF() {
-    const svgElement = document.querySelector("#tree-container svg");
-    if (!svgElement) {
-        alert("Nenhuma árvore gerada para exportar. Selecione um animal primeiro.");
+    const svgElement = document.querySelector('#tree-container svg');
+    if (!svgElement || !treeG) {
+        showMessage('<span class="toast-title">Atenção</span>Gere uma árvore antes: selecione um animal.', 'warning');
         return;
     }
 
-    // Setup Canvas
-    const canvas = document.createElement("canvas");
-    // We use established dimensions from renderTree (800x600) or dynamic
-    const width = 800; 
-    const height = 600;
-    
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    
-    // Serialize SVG
-    const serializer = new XMLSerializer();
-    let svgString = serializer.serializeToString(svgElement);
+    // Clona o SVG em coordenadas "limpas" (sem zoom/pan) com o tamanho exato do conteúdo
+    const box = treeG.node().getBBox();
+    const pad = 30, scale = 2;
+    const w = Math.ceil(box.width + pad * 2);
+    const h = Math.ceil(box.height + pad * 2);
 
-    // Create Image from SVG
+    const clone = svgElement.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    clone.style.cssText = '';
+    const g = clone.querySelector('g.tree-root');
+    g.setAttribute('transform', `translate(${pad - box.x},${pad - box.y})`);
+
+    const svgString = new XMLSerializer().serializeToString(clone);
+    const url = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' }));
+
     const img = new Image();
-    const svgBlob = new Blob([svgString], {type: "image/svg+xml;charset=utf-8"});
-    const url = URL.createObjectURL(svgBlob);
-    
-    img.onload = function() {
-        // Draw white background
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, width, height);
-        
-        ctx.drawImage(img, 0, 0);
-        
-        const imgData = canvas.toDataURL("image/png");
-        
-        // Create PDF
+    img.onload = function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = w * scale;
+        canvas.height = h * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+
+        const imgData = canvas.toDataURL('image/png');
         const { jsPDF } = window.jspdf;
-        // Landscape might be better for trees
-        const doc = new jsPDF({ orientation: 'landscape' }); 
-        
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+
         doc.setFontSize(16);
         doc.text('Árvore Genealógica', 14, 15);
-        
-        const searchVal = document.getElementById('search-boi').value;
-        doc.setFontSize(12);
-        doc.text(`Animal: ${searchVal}`, 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Animal: ${document.getElementById('search-boi').value}`, 14, 22);
+        doc.setFontSize(9);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageW - 14, 15, { align: 'right' });
 
-        // Add Image
-        doc.addImage(imgData, 'PNG', 15, 30, 260, 195); // Adjust sizes to fit A4 Landscape
+        // Mantém a proporção da imagem dentro da área útil da página
+        const areaW = pageW - 20, areaH = pageH - 38;
+        const ratio = Math.min(areaW / w, areaH / h);
+        const drawW = w * ratio, drawH = h * ratio;
+        doc.addImage(imgData, 'PNG', (pageW - drawW) / 2, 28, drawW, drawH);
 
-        const filename = `ArvoreGenealogica_${getTimestampStr()}.pdf`;
-        doc.save(filename);
-        
-        URL.revokeObjectURL(url);
+        doc.save(`ArvoreGenealogica_${getTimestampStr()}.pdf`);
     };
-    
+    img.onerror = function () {
+        URL.revokeObjectURL(url);
+        showMessage('<span class="toast-title">Erro</span>Não foi possível gerar o PDF da árvore.', 'error');
+    };
     img.src = url;
 }
 

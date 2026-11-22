@@ -2,490 +2,304 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Romaneio - Dashboard</title>
     <link rel="stylesheet" href="css/style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <script src="js/sidebar.js"></script>
+    <style>
+      .page-title { display:flex; flex-direction:column; gap:.15rem; }
+      .page-title p { color: var(--text-secondary); font-size:.9rem; }
+      .rank-list { list-style:none; display:flex; flex-direction:column; gap:.85rem; margin-top:.5rem; }
+      .rank-item { display:grid; grid-template-columns: 32px 1fr auto; gap:.2rem .75rem; align-items:center; }
+      .rank-pos { width:32px; height:32px; border-radius:10px; background:var(--accent-soft); color:var(--primary-color);
+        font-weight:800; display:flex; align-items:center; justify-content:center; font-size:.85rem; }
+      .rank-item:first-child .rank-pos { background:linear-gradient(135deg,#f59e0b,#f97316); color:#fff; }
+      .rank-name { font-weight:600; overflow-wrap:anywhere; }
+      .rank-val { font-weight:700; color:var(--navy-800); white-space:nowrap; }
+      .rank-bar { grid-column: 2 / 4; height:7px; border-radius:99px; background:#eef2f8; overflow:hidden; }
+      .rank-bar > i { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent-color),var(--navy-700)); width:0; transition:width 1s cubic-bezier(.2,.8,.2,1); }
+      .empty-msg { color:var(--text-secondary); text-align:center; padding:2rem 0; font-size:.9rem; }
+      .details-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:1.25rem; }
+      @media (max-width: 900px) { .details-grid { grid-template-columns:1fr; } }
+    </style>
   </head>
   <body>
     <div class="app-container">
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <h1>Romaneio</h1>
-          <button id="sidebar-toggle" class="sidebar-toggle-btn">
-            <i class="fas fa-bars"></i>
-          </button>
-        </div>
-        <ul class="nav-links">
-          <li>
-            <a href="dashboard.html" class="active"
-              ><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a
-            >
-          </li>
-          <li>
-            <a href="fazendas.html"
-              ><i class="fas fa-layer-group"></i> <span>Fazendas</span></a
-            >
-          </li>
-          <li>
-            <a href="pastos.html"
-              ><i class="fas fa-seedling"></i> <span>Pastos</span></a
-            >
-          </li>
-          <li>
-            <a href="bovinos.html"
-              ><i class="fas fa-paw"></i> <span>Bovinos</span></a
-            >
-          </li>
-          <li>
-            <a href="manejo.html"
-              ><i class="fas fa-weight"></i> <span>Manejo de Pasto</span></a
-            >
-          </li>
-          <li>
-            <a href="historico.html"
-              ><i class="fas fa-history"></i> <span>Histórico de Pesos</span></a
-            >
-          </li>
-          <li>
-            <a href="historico_gmp.html"
-              ><i class="fas fa-chart-line"></i> <span>Histórico G.M.P</span></a
-            >
-          </li>
-          <li>
-            <a href="vacinas.html"
-              ><i class="fas fa-syringe"></i> <span>Vacinas</span></a
-            >
-          </li>
-          <li>
-            <a href="dieta.html"
-              ><i class="fas fa-utensils"></i> <span>Dieta</span></a
-            >
-          </li>
-          <li>
-            <a href="perspectiva_peso.html"
-              ><i class="fas fa-chart-pie"></i>
-              <span>Perspectiva de Peso</span></a
-            >
-          </li>
-          <li>
-            <a href="baixas.html"
-              ><i class="fas fa-skull-crossbones"></i>
-              <span>Baixa de Bois</span></a
-            >
-          </li>
-          <li>
-            <a href="genealogia.html"
-              ><i class="fas fa-dna"></i> <span>Genealogia</span></a
-            >
-          </li>
-          <li>
-            <a href="usuarios.html"
-              ><i class="fas fa-users"></i> <span>Cadastro de Usuários</span></a
-            >
-          </li>
-        </ul>
-        <button class="logout-btn" onclick="logout()">
-          <i class="fas fa-sign-out-alt"></i> <span>Sair</span>
-        </button>
-      </aside>
+      <aside class="sidebar"></aside>
 
       <main class="main-content">
-        <h2 style="margin-bottom: 2rem">Dashboard</h2>
+        <div class="table-header">
+          <div class="page-title">
+            <h2>Dashboard</h2>
+            <p>Visão geral do rebanho, finanças e desempenho</p>
+          </div>
+        </div>
 
-        <!-- Row 1: General Stats -->
         <div class="stats-grid">
-          <div class="stat-card">
-            <h3>Qtd. Total de BOTONS</h3>
-            <span class="value" id="stat-bois">0</span>
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-paw"></i></span><h3>Total de BOTONS</h3><span class="value" id="stat-bois">0</span></div>
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-layer-group"></i></span><h3>Total de Fazendas</h3><span class="value" id="stat-fazendas">0</span></div>
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-seedling"></i></span><h3>Total de Pastos</h3><span class="value" id="stat-pastos">0</span></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-sack-dollar"></i></span><h3>Valor Total Investido</h3><span class="value" id="stat-investido">R$ 0,00</span></div>
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-coins"></i></span><h3>Custo Médio por Boi</h3><span class="value" id="stat-custo-medio">R$ 0,00</span></div>
+          <div class="stat-card"><span class="stat-icon"><i class="fas fa-gauge-high"></i></span><h3>GMD Médio do Rebanho</h3><span class="value" id="stat-gmd">0,000 kg/dia</span></div>
+        </div>
+
+        <div class="dashboard-grid cols-2">
+          <div class="chart-card">
+            <h3>Distribuição de Peso</h3>
+            <div class="chart-sub">Animais por faixa de peso atual (kg)</div>
+            <div class="chart-box"><canvas id="weightChart"></canvas></div>
           </div>
-          <div class="stat-card">
-            <h3>Qtd. Total de Fazendas</h3>
-            <span class="value" id="stat-fazendas">0</span>
-          </div>
-          <div class="stat-card">
-            <h3>Qtd. Total de Pastos</h3>
-            <span class="value" id="stat-pastos">0</span>
+          <div class="chart-card">
+            <h3>Motivos de Baixa</h3>
+            <div class="chart-sub">Proporção entre vendas e mortes</div>
+            <div class="chart-box"><canvas id="baixasChart"></canvas></div>
           </div>
         </div>
 
-        <!-- Row 2: Financial and Performance Stats -->
-        <div class="stats-grid" style="margin-top: 2rem">
-          <div class="stat-card">
-            <h3>Valor Total Investido</h3>
-            <span class="value" id="stat-investido">R$ 0,00</span>
+        <div class="dashboard-grid cols-21">
+          <div class="chart-card">
+            <h3>Bovinos por Fazenda</h3>
+            <div class="chart-sub">Animais em manejo em cada fazenda</div>
+            <div class="chart-box"><canvas id="fazendaChart"></canvas></div>
           </div>
-          <div class="stat-card">
-            <h3>Custo Médio por Boi</h3>
-            <span class="value" id="stat-custo-medio">R$ 0,00</span>
-          </div>
-          <div class="stat-card">
-            <h3>GMD Médio do Rebanho</h3>
-            <span class="value" id="stat-gmd">0.00 kg/dia</span>
+          <div class="chart-card">
+            <h3>Top 5 – Mais Pesados</h3>
+            <div class="chart-sub">Peso atual dos maiores animais</div>
+            <ol class="rank-list" id="top5-list"><li class="empty-msg">Carregando…</li></ol>
           </div>
         </div>
 
-        <!-- Row 3: Chats and Tables -->
-        <div
-          class="dashboard-grid"
-          style="
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin-top: 2rem;
-          "
-        >
-          <!-- Weight Distribution Chart -->
-          <div
-            class="chart-container"
-            style="
-              background: white;
-              padding: 1.5rem;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            "
-          >
-            <h3 style="margin-bottom: 1rem">Distribuição de Peso (Kg)</h3>
-            <div style="height: 300px">
-              <canvas id="weightChart"></canvas>
-            </div>
-          </div>
-
-          <!-- Baixas Chart -->
-          <div
-            class="chart-container"
-            style="
-              background: white;
-              padding: 1.5rem;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            "
-          >
-            <h3 style="margin-bottom: 1rem">Motivos de Baixa</h3>
-            <div style="height: 300px">
-              <canvas id="baixasChart"></canvas>
-            </div>
+        <div class="dashboard-grid">
+          <div class="chart-card">
+            <h3>Bovinos por Pasto</h3>
+            <div class="chart-sub">Ocupação dos pastos (animais em manejo)</div>
+            <div class="chart-box" id="pastoBox"><canvas id="pastoChart"></canvas></div>
           </div>
         </div>
 
-        <div
-          class="dashboard-grid"
-          style="
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-            margin-top: 2rem;
-          "
-        >
-          <!-- Original System Chart -->
-          <div class="table-container">
-            <div class="table-header">
-              <h3>Visão Geral (Locais)</h3>
-            </div>
-            <div style="height: 300px; padding: 1rem">
-              <canvas id="dashboardChart"></canvas>
-            </div>
+        <div class="details-grid">
+          <div class="table-container" style="margin-bottom:0">
+            <div class="table-header"><h3>Qtd. de BOTONS por Fazenda</h3></div>
+            <table id="table-bois-fazenda"><thead><tr><th>Fazenda</th><th>Qtd. BOTONS (Manejo)</th></tr></thead><tbody></tbody></table>
           </div>
-
-          <!-- Top 5 Heaviest -->
-          <div class="table-container">
-            <div class="table-header">
-              <h3>Top 5 - Mais Pesados</h3>
-            </div>
-            <table id="table-top5">
-              <thead>
-                <tr>
-                  <th>Boi</th>
-                  <th>Peso Atual (kg)</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="stats-grid" style="margin-top: 2rem">
-          <div class="table-container">
-            <div class="table-header">
-              <h3>Qtd. de BOTONS por Fazenda</h3>
-            </div>
-            <table id="table-bois-fazenda">
-              <thead>
-                <tr>
-                  <th>Fazenda</th>
-                  <th>Qtd. BOTONS (Manejo)</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <div class="table-container">
-            <div class="table-header">
-              <h3>Qtd. de BOTONS por Pasto</h3>
-            </div>
-            <table id="table-bois-pasto">
-              <thead>
-                <tr>
-                  <th>Pasto</th>
-                  <th>Qtd. BOTONS (Manejo)</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+          <div class="table-container" style="margin-bottom:0">
+            <div class="table-header"><h3>Qtd. de BOTONS por Pasto</h3></div>
+            <table id="table-bois-pasto"><thead><tr><th>Pasto</th><th>Qtd. BOTONS (Manejo)</th></tr></thead><tbody></tbody></table>
           </div>
         </div>
       </main>
     </div>
 
     <script>
-      function checkAuth() {
-        const user = localStorage.getItem("user");
-        if (!user) window.location.href = "index.html";
-      }
-      checkAuth();
+      const esc = window.escapeHtml;
+      const COLORS = { green: "#16a34a", red: "#dc2626", amber: "#f59e0b" };
+      const charts = {};
+      const isMobile = () => window.innerWidth <= 640;
 
-      function logout() {
-        localStorage.removeItem("user");
-        window.location.href = "index.html";
+      Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+      Chart.defaults.font.size = 12;
+      Chart.defaults.color = "#5b6b86";
+      Chart.defaults.animation = { duration: 1100, easing: "easeOutQuart" };
+      Chart.defaults.plugins.legend.labels.usePointStyle = true;
+      Chart.defaults.plugins.legend.labels.pointStyle = "circle";
+      Chart.defaults.plugins.legend.labels.boxWidth = 8;
+      Chart.defaults.plugins.tooltip.backgroundColor = "rgba(7,20,46,.94)";
+      Chart.defaults.plugins.tooltip.padding = 12;
+      Chart.defaults.plugins.tooltip.cornerRadius = 10;
+      Chart.defaults.plugins.tooltip.titleFont = { weight: "700" };
+      Chart.defaults.plugins.tooltip.boxPadding = 4;
+
+      function makeChart(id, config) {
+        if (charts[id]) charts[id].destroy();
+        const el = document.getElementById(id);
+        if (!el) return;
+        charts[id] = new Chart(el.getContext("2d"), config);
       }
 
-      function formatCurrency(value) {
-        return new Intl.NumberFormat("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        }).format(value);
+      function vGradient(c1, c2) {
+        return (context) => {
+          const { ctx, chartArea } = context.chart;
+          if (!chartArea) return c1;
+          const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+          g.addColorStop(0, c1); g.addColorStop(1, c2);
+          return g;
+        };
+      }
+      function hGradient(c1, c2) {
+        return (context) => {
+          const { ctx, chartArea } = context.chart;
+          if (!chartArea) return c1;
+          const g = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+          g.addColorStop(0, c1); g.addColorStop(1, c2);
+          return g;
+        };
+      }
+
+      const centerText = {
+        id: "centerText",
+        afterDraw(chart, _args, opts) {
+          if (!opts || opts.text == null) return;
+          const { ctx, chartArea: a } = chart;
+          const x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
+          ctx.save();
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "#0c2559"; ctx.font = "800 30px Inter, sans-serif";
+          ctx.fillText(opts.text, x, y - 8);
+          ctx.fillStyle = "#5b6b86"; ctx.font = "600 11px Inter, sans-serif";
+          ctx.fillText(opts.label || "", x, y + 16);
+          ctx.restore();
+        },
+      };
+
+      const fmtBRL = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+
+      function animateValue(el, to, formatter) {
+        const dur = 900, start = performance.now();
+        const fmt = formatter || ((n) => Math.round(n).toLocaleString("pt-BR"));
+        function tick(now) {
+          const p = Math.min((now - start) / dur, 1);
+          el.textContent = fmt(to * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }
+
+      async function getJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(url + " -> " + res.status);
+        return res.json();
       }
 
       async function loadStats() {
         try {
-          // Basic Stats
-          const res = await fetch("/api/dashboard/stats");
-          const data = await res.json();
-          document.getElementById("stat-bois").textContent =
-            data?.totalBois || 0;
-          document.getElementById("stat-fazendas").textContent =
-            data?.totalFazendas || 0;
-          document.getElementById("stat-pastos").textContent =
-            data?.totalPastos || 0;
-
-          // Financial Stats
-          const resFin = await fetch("/api/dashboard/financial");
-          const dataFin = await resFin.json();
-          document.getElementById("stat-investido").textContent =
-            formatCurrency(dataFin.totalInvested || 0);
-          document.getElementById("stat-custo-medio").textContent =
-            formatCurrency(dataFin.avgCost || 0);
-
-          // Weight Stats (GMD and Top 5)
-          const resWeight = await fetch("/api/dashboard/weight-stats");
-          const dataWeight = await resWeight.json();
-
-          document.getElementById("stat-gmd").textContent =
-            (dataWeight.avgGMD || 0).toFixed(3) + " kg/dia";
-
-          // Top 5 Table
-          const tbodyTop5 = document.querySelector("#table-top5 tbody");
-          tbodyTop5.innerHTML = dataWeight.top5
-            .map(
-              (boi) => `
-                    <tr>
-                        <td>${boi.name}</td>
-                        <td>${boi.weight} kg</td>
-                    </tr>
-                `
-            )
-            .join("");
-
-          // Render Weight Chart
-          renderWeightChart(dataWeight.weightDistribution);
-        } catch (err) {
-          console.error("Error loading stats", err);
-        }
-      }
-
-      async function loadReports() {
-        try {
-          const resF = await fetch("/api/dashboard/report/bois-fazenda");
-          const dataF = await resF.json();
-          const tbodyF = document.querySelector("#table-bois-fazenda tbody");
-          tbodyF.innerHTML = dataF
-            .map(
-              (row) =>
-                `<tr><td>${row.fazenda}</td><td>${row.qtd_bois}</td></tr>`
-            )
-            .join("");
-
-          const resP = await fetch("/api/dashboard/report/bois-pasto");
-          const dataP = await resP.json();
-          const tbodyP = document.querySelector("#table-bois-pasto tbody");
-          tbodyP.innerHTML = dataP
-            .map(
-              (row) => `<tr><td>${row.pasto}</td><td>${row.qtd_bois}</td></tr>`
-            )
-            .join("");
-        } catch (err) {
-          console.error("Error loading reports", err);
-        }
-      }
-
-      async function loadCharts() {
-        // Load Original Dashboard Chart (Locations)
-        try {
-          const [statsRes, fazendaRes, pastoRes] = await Promise.all([
-            fetch("/api/dashboard/stats"),
-            fetch("/api/dashboard/report/bois-fazenda"),
-            fetch("/api/dashboard/report/bois-pasto"),
+          const [stats, fin, weight] = await Promise.all([
+            getJson("/api/dashboard/stats"),
+            getJson("/api/dashboard/financial"),
+            getJson("/api/dashboard/weight-stats"),
           ]);
-
-          const stats = await statsRes.json();
-          const fazendaData = await fazendaRes.json();
-          const pastoData = await pastoRes.json();
-
-          const ctx = document
-            .getElementById("dashboardChart")
-            .getContext("2d");
-
-          const labels = [
-            "Total BOTONS",
-            "Total Fazendas",
-            "Total Pastos",
-            ...fazendaData.map((f) => `BOTONS em ${f.fazenda}`),
-            ...pastoData.map((p) => `BOTONS em ${p.pasto}`),
-          ];
-
-          const dataValues = [
-            stats.totalBois || 0,
-            stats.totalFazendas || 0,
-            stats.totalPastos || 0,
-            ...fazendaData.map((f) => f.qtd_bois),
-            ...pastoData.map((p) => p.qtd_bois),
-          ];
-
-          const vibrantColors = [
-            "rgba(255, 99, 132, 0.7)",
-            "rgba(54, 162, 235, 0.7)",
-            "rgba(255, 206, 86, 0.7)",
-            "rgba(75, 192, 192, 0.7)",
-            "rgba(153, 102, 255, 0.7)",
-          ];
-          const backgroundColors = dataValues.map(
-            (_, index) => vibrantColors[index % vibrantColors.length]
-          );
-
-          new Chart(ctx, {
-            type: "bar",
-            data: {
-              labels: labels,
-              datasets: [
-                {
-                  label: "Quantidade",
-                  data: dataValues,
-                  backgroundColor: backgroundColors,
-                  borderWidth: 1,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-            },
-          });
-        } catch (err) {
-          console.error("Error loading dashboard chart:", err);
-        }
-
-        // Load Baixas Chart
-        try {
-          const res = await fetch("/api/dashboard/baixas-stats");
-          const data = await res.json();
-
-          const ctxBaixas = document
-            .getElementById("baixasChart")
-            .getContext("2d");
-
-          new Chart(ctxBaixas, {
-            type: "doughnut",
-            data: {
-              labels: data.map((d) => d.status),
-              datasets: [
-                {
-                  data: data.map((d) => d.count),
-                  backgroundColor: [
-                    "rgba(231, 76, 60, 0.8)", // Red for Mortes
-                    "rgba(46, 204, 113, 0.8)", // Green for Venda
-                    "rgba(241, 196, 15, 0.8)", // Yellow for other
-                    "rgba(52, 152, 219, 0.8)",
-                  ],
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: "bottom" },
-              },
-            },
-          });
-        } catch (err) {
-          console.error("Error loading baixas chart:", err);
-        }
+          animateValue(document.getElementById("stat-bois"), stats.totalBois || 0);
+          animateValue(document.getElementById("stat-fazendas"), stats.totalFazendas || 0);
+          animateValue(document.getElementById("stat-pastos"), stats.totalPastos || 0);
+          animateValue(document.getElementById("stat-investido"), fin.totalInvested || 0, fmtBRL);
+          animateValue(document.getElementById("stat-custo-medio"), fin.avgCost || 0, fmtBRL);
+          animateValue(document.getElementById("stat-gmd"), weight.avgGMD || 0, (n) =>
+            n.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + " kg/dia");
+          renderTop5(weight.top5 || []);
+          renderWeightChart(weight.weightDistribution || {});
+        } catch (err) { console.error("Erro ao carregar estatísticas", err); }
       }
 
-      function renderWeightChart(distribution) {
-        const ctx = document.getElementById("weightChart").getContext("2d");
-        new Chart(ctx, {
+      function renderTop5(top5) {
+        const ul = document.getElementById("top5-list");
+        if (!top5.length) { ul.innerHTML = '<li class="empty-msg">Sem dados de peso ainda.</li>'; return; }
+        const max = Math.max(...top5.map((b) => Number(b.weight) || 0), 1);
+        ul.innerHTML = top5.map((b, i) => `
+          <li class="rank-item">
+            <span class="rank-pos">${i + 1}</span>
+            <span class="rank-name">${esc(b.name)}</span>
+            <span class="rank-val">${Number(b.weight).toLocaleString("pt-BR")} kg</span>
+            <span class="rank-bar"><i data-w="${((Number(b.weight) / max) * 100).toFixed(1)}"></i></span>
+          </li>`).join("");
+        requestAnimationFrame(() => requestAnimationFrame(() =>
+          ul.querySelectorAll(".rank-bar > i").forEach((i) => (i.style.width = i.dataset.w + "%"))));
+      }
+
+      function renderWeightChart(d) {
+        makeChart("weightChart", {
           type: "bar",
           data: {
-            labels: ["< 200kg", "200kg - 350kg", "350kg - 500kg", "> 500kg"],
-            datasets: [
-              {
-                label: "Número de Bois",
-                data: [
-                  distribution.under200,
-                  distribution.between200and350,
-                  distribution.between350and500,
-                  distribution.over500,
-                ],
-                backgroundColor: [
-                  "rgba(255, 99, 132, 0.7)",
-                  "rgba(54, 162, 235, 0.7)",
-                  "rgba(75, 192, 192, 0.7)",
-                  "rgba(153, 102, 255, 0.7)",
-                ],
-                borderColor: [
-                  "rgba(255, 99, 132, 1)",
-                  "rgba(54, 162, 235, 1)",
-                  "rgba(75, 192, 192, 1)",
-                  "rgba(153, 102, 255, 1)",
-                ],
-                borderWidth: 1,
-              },
-            ],
+            labels: ["< 200 kg", "200 – 350 kg", "350 – 500 kg", "> 500 kg"],
+            datasets: [{
+              label: "Número de bois",
+              data: [d.under200 || 0, d.between200and350 || 0, d.between350and500 || 0, d.over500 || 0],
+              backgroundColor: vGradient("rgba(37,99,235,.35)", "#2563eb"),
+              hoverBackgroundColor: vGradient("rgba(12,37,89,.5)", "#0c2559"),
+              borderRadius: 12, borderSkipped: false, maxBarThickness: 64,
+            }],
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              title: { display: false },
-            },
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
             scales: {
-              y: { beginAtZero: true },
+              x: { grid: { display: false }, border: { display: false } },
+              y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f8" }, border: { display: false } },
             },
           },
         });
       }
 
+      function horizontalBar(id, labels, values, c1, c2) {
+        makeChart(id, {
+          type: "bar",
+          data: { labels, datasets: [{ label: "Bovinos", data: values, backgroundColor: hGradient(c1, c2),
+            borderRadius: 10, borderSkipped: false, barThickness: isMobile() ? 18 : 24 }] },
+          options: {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f8" }, border: { display: false } },
+              y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false } },
+            },
+          },
+        });
+      }
+
+      async function loadReports() {
+        try {
+          const [fazendas, pastos] = await Promise.all([
+            getJson("/api/dashboard/report/bois-fazenda"),
+            getJson("/api/dashboard/report/bois-pasto"),
+          ]);
+          const empty = '<tr><td colspan="2" style="text-align:center;color:#5b6b86">Sem dados</td></tr>';
+          document.querySelector("#table-bois-fazenda tbody").innerHTML =
+            fazendas.map((r) => `<tr><td>${esc(r.fazenda)}</td><td>${r.qtd_bois}</td></tr>`).join("") || empty;
+          document.querySelector("#table-bois-pasto tbody").innerHTML =
+            pastos.map((r) => `<tr><td>${esc(r.pasto)}</td><td>${r.qtd_bois}</td></tr>`).join("") || empty;
+
+          horizontalBar("fazendaChart", fazendas.map((r) => r.fazenda), fazendas.map((r) => r.qtd_bois), "#60a5fa", "#0c2559");
+          document.getElementById("pastoBox").style.height = Math.max(240, pastos.length * 38 + 60) + "px";
+          horizontalBar("pastoChart", pastos.map((r) => r.pasto), pastos.map((r) => r.qtd_bois), "#93c5fd", "#4f6d94");
+        } catch (err) { console.error("Erro ao carregar relatórios", err); }
+      }
+
+      async function loadBaixas() {
+        try {
+          const data = await getJson("/api/dashboard/baixas-stats");
+          const colorFor = (s) => (/vend/i.test(s) ? COLORS.green : /morr|mort/i.test(s) ? COLORS.red : COLORS.amber);
+          const total = data.reduce((a, d) => a + (d.count || 0), 0);
+          if (!total) {
+            document.getElementById("baixasChart").parentElement.innerHTML = '<div class="empty-msg">Nenhuma baixa registrada.</div>';
+            return;
+          }
+          makeChart("baixasChart", {
+            type: "doughnut",
+            data: {
+              labels: data.map((d) => d.status),
+              datasets: [{ data: data.map((d) => d.count), backgroundColor: data.map((d) => colorFor(d.status)),
+                borderColor: "#fff", borderWidth: 4, hoverOffset: 12, borderRadius: 8, spacing: 2 }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false, cutout: "68%",
+              animation: { animateRotate: true, animateScale: true, duration: 1300 },
+              plugins: {
+                legend: { position: "bottom", labels: { padding: 18 } },
+                centerText: { text: String(total), label: total === 1 ? "BAIXA" : "BAIXAS" },
+              },
+            },
+            plugins: [centerText],
+          });
+        } catch (err) { console.error("Erro ao carregar baixas", err); }
+      }
+
       loadStats();
       loadReports();
-      loadCharts();
+      loadBaixas();
     </script>
     <script src="js/header-utils.js"></script>
   </body>

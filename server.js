@@ -3,101 +3,217 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const db = require('./database-pg');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const path = require('path');
 
 const app = express();
-//app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// --- SEGURANÇA: configuração -------------------------------------------------
+// Defina JWT_SECRET no ambiente (Hostinger / .env). Sem ele, um segredo aleatório
+// é gerado a cada inicialização (todos os usuários precisarão logar de novo ao reiniciar).
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    JWT_SECRET = crypto.randomBytes(48).toString('hex');
+    console.warn('[SEGURANÇA] JWT_SECRET não definido. Usando segredo temporário; defina JWT_SECRET no ambiente.');
+}
+const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '12h';
 
-// Middleware to check authentication (Simplified for prototype, ideally use JWT or Sessions)
-// For this task, we'll verify password on login and frontend can store a flag/token.
-// For a real app, use express-session or jsonwebtoken.
-// We will focus on the API logic first.
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+// Cabeçalhos de segurança básicos (sem dependência extra)
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+});
+
+// CORS: o front é servido pelo próprio servidor (mesma origem). Origens extras via CORS_ORIGINS.
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
+app.use(bodyParser.json({ limit: '1mb' }));
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+
+// Resposta de erro sem vazar detalhes internos do banco
+function sendError(res, err) {
+    console.error('[DB]', err && err.message);
+    const code = err && err.code;
+    if (code === '23505') return res.status(409).json({ error: 'Já existe um registro com esses dados.' });
+    if (code === '23503') return res.status(409).json({ error: 'Operação não permitida: o registro está vinculado a outros dados.' });
+    if (code === '23502' || code === '22P02' || code === '22007' || code === '22003' || code === '23514' || code === '22001') {
+        return res.status(400).json({ error: 'Dados inválidos. Verifique os campos informados.' });
+    }
+    return res.status(500).json({ error: 'Erro interno do servidor.' });
+}
+
+// Rate limit simples em memória (login)
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX = 10;
+function loginLimiter(req, res, next) {
+    const key = req.ip;
+    const now = Date.now();
+    const entry = loginAttempts.get(key);
+    if (!entry || now - entry.start > LOGIN_WINDOW_MS) {
+        loginAttempts.set(key, { start: now, count: 1 });
+        return next();
+    }
+    entry.count++;
+    if (entry.count > LOGIN_MAX) {
+        const wait = Math.ceil((LOGIN_WINDOW_MS - (now - entry.start)) / 60000);
+        return res.status(429).json({ error: `Muitas tentativas de login. Tente novamente em ${wait} min.` });
+    }
+    next();
+}
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of loginAttempts) if (now - v.start > LOGIN_WINDOW_MS) loginAttempts.delete(k);
+}, 10 * 60 * 1000).unref();
 
 // --- AUTH ---
+function requireAuth(req, res, next) {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return res.status(401).json({ error: 'Não autenticado.' });
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch (e) {
+        return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+    }
+}
+function requireAdmin(req, res, next) {
+    if (!req.user || req.user.profile !== 'Admin') {
+        return res.status(403).json({ error: 'Acesso restrito a administradores.' });
+    }
+    next();
+}
 
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!user) return res.status(401).json({ error: "User not found" });
+const VALID_PROFILES = ['Admin', 'Usuário'];
 
-        const validPassword = bcrypt.compareSync(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: "Invalid password" });
+app.post('/api/login', loginLimiter, (req, res) => {
+    const { username, password } = req.body || {};
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+        return res.status(400).json({ error: 'Informe usuário e senha.' });
+    }
+    db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+        if (err) return sendError(res, err);
+        // Mensagem genérica: não revela se o usuário existe
+        const invalid = () => res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+        if (!user) {
+            await bcrypt.compare(password, '$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali').catch(() => {});
+            return invalid();
+        }
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return invalid();
 
-        res.json({ message: "Login successful", user: { id: user.id, name: user.name, profile: user.profile } });
+        loginAttempts.delete(req.ip);
+        const payload = { id: user.id, name: user.name, profile: user.profile };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_TTL });
+        res.json({ message: "Login successful", token, user: payload });
     });
 });
 
-app.post('/api/register', (req, res) => {
-    const { name, username, password, profile, celular } = req.body;
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync(password, salt);
-
-    db.run("INSERT INTO users (name, username, password, profile, celular) VALUES (?, ?, ?, ?, ?)",
-        [name, username, hash, profile, celular || null],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, message: "User registered successfully" });
-        }
-    );
+// Retorna o usuário da sessão atual (usado pelo front para validar o token)
+app.get('/api/me', requireAuth, (req, res) => {
+    res.json({ id: req.user.id, name: req.user.name, profile: req.user.profile });
 });
 
-// --- USERS MANAGEMENT ---
+// A partir daqui, TODA a API exige autenticação
+app.use('/api', requireAuth);
 
-app.get('/api/users', (req, res) => {
-    db.all("SELECT id, name, username, celular, profile FROM users", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+// Defesa em profundidade contra XSS armazenado: remove "<" e ">" de campos de texto
+// (nomes, brincos, endereços etc.). Senhas não são alteradas.
+function stripTags(value, key) {
+    if (typeof value === 'string') return key === 'password' ? value : value.replace(/[<>]/g, '');
+    if (Array.isArray(value)) return value.map(v => stripTags(v, key));
+    if (value && typeof value === 'object') {
+        const out = {};
+        for (const k of Object.keys(value)) out[k] = stripTags(value[k], k);
+        return out;
+    }
+    return value;
+}
+app.use('/api', (req, res, next) => {
+    if (req.body && typeof req.body === 'object') req.body = stripTags(req.body, '');
+    next();
+});
+
+// --- USERS MANAGEMENT (somente Admin) ---
+
+function validateUserBody(body, { requirePassword }) {
+    const { name, username, password, profile } = body || {};
+    if (!name || typeof name !== 'string' || !name.trim()) return 'Informe o nome.';
+    if (!username || typeof username !== 'string' || !username.trim()) return 'Informe o usuário.';
+    if (!VALID_PROFILES.includes(profile)) return 'Perfil inválido.';
+    if (requirePassword || (password && String(password).trim() !== '')) {
+        if (typeof password !== 'string' || password.length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
+    }
+    return null;
+}
+
+app.get('/api/users', requireAdmin, (req, res) => {
+    db.all("SELECT id, name, username, celular, profile FROM users ORDER BY name", [], (err, rows) => {
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
 
-app.post('/api/users', (req, res) => {
+app.post('/api/users', requireAdmin, async (req, res) => {
+    const msg = validateUserBody(req.body, { requirePassword: true });
+    if (msg) return res.status(400).json({ error: msg });
     const { name, username, password, celular, profile } = req.body;
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync(password, salt);
+    const hash = await bcrypt.hash(password, 10);
 
     db.run("INSERT INTO users (name, username, password, celular, profile) VALUES (?, ?, ?, ?, ?)",
-        [name, username, hash, celular || null, profile],
+        [name.trim(), username.trim(), hash, celular || null, profile],
         function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             res.json({ id: this.lastID });
         }
     );
 });
 
-app.put('/api/users/:id', (req, res) => {
+app.put('/api/users/:id', requireAdmin, async (req, res) => {
+    const msg = validateUserBody(req.body, { requirePassword: false });
+    if (msg) return res.status(400).json({ error: msg });
     const { name, username, password, celular, profile } = req.body;
-    
-    // If password is provided, hash it; otherwise, keep the existing password
+
+    // Não permite rebaixar o próprio perfil (evita ficar sem administrador)
+    if (String(req.params.id) === String(req.user.id) && profile !== 'Admin') {
+        return res.status(400).json({ error: 'Você não pode remover o seu próprio perfil de administrador.' });
+    }
+
     if (password && password.trim() !== '') {
-        const salt = bcrypt.genSaltSync(10);
-        const hash = bcrypt.hashSync(password, salt);
+        const hash = await bcrypt.hash(password, 10);
         db.run("UPDATE users SET name = ?, username = ?, password = ?, celular = ?, profile = ? WHERE id = ?",
-            [name, username, hash, celular || null, profile, req.params.id],
+            [name.trim(), username.trim(), hash, celular || null, profile, req.params.id],
             function(err) {
-                if (err) return res.status(500).json({ error: err.message });
+                if (err) return sendError(res, err);
                 res.json({ changes: this.changes });
             }
         );
     } else {
         db.run("UPDATE users SET name = ?, username = ?, celular = ?, profile = ? WHERE id = ?",
-            [name, username, celular || null, profile, req.params.id],
+            [name.trim(), username.trim(), celular || null, profile, req.params.id],
             function(err) {
-                if (err) return res.status(500).json({ error: err.message });
+                if (err) return sendError(res, err);
                 res.json({ changes: this.changes });
             }
         );
     }
 });
 
-app.delete('/api/users/:id', (req, res) => {
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+    if (String(req.params.id) === String(req.user.id)) {
+        return res.status(400).json({ error: 'Você não pode excluir o seu próprio usuário.' });
+    }
     db.run("DELETE FROM users WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -106,7 +222,7 @@ app.delete('/api/users/:id', (req, res) => {
 
 app.get('/api/fazendas', (req, res) => {
     db.all("SELECT * FROM fazendas", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -114,7 +230,7 @@ app.get('/api/fazendas', (req, res) => {
 app.post('/api/fazendas', (req, res) => {
     const { name, address } = req.body;
     db.run("INSERT INTO fazendas (name, address) VALUES (?, ?)", [name, address], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
@@ -122,14 +238,14 @@ app.post('/api/fazendas', (req, res) => {
 app.put('/api/fazendas/:id', (req, res) => {
     const { name, address } = req.body;
     db.run("UPDATE fazendas SET name = ?, address = ? WHERE id = ?", [name, address, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
 
 app.delete('/api/fazendas/:id', (req, res) => {
     db.run("DELETE FROM fazendas WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -139,14 +255,14 @@ app.delete('/api/fazendas/:id', (req, res) => {
 app.get('/api/pastos', (req, res) => {
     const sql = `SELECT p.*, f.name as fazenda_name FROM pastos p LEFT JOIN fazendas f ON p.fazenda_id = f.id ORDER BY p.id DESC`;
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
 
 app.get('/api/pastos/fazenda/:id', (req, res) => {
     db.all("SELECT * FROM pastos WHERE fazenda_id = ?", [req.params.id], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -154,7 +270,7 @@ app.get('/api/pastos/fazenda/:id', (req, res) => {
 app.post('/api/pastos', (req, res) => {
     const { name, fazenda_id } = req.body;
     db.run("INSERT INTO pastos (name, fazenda_id) VALUES (?, ?)", [name, fazenda_id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
@@ -162,7 +278,7 @@ app.post('/api/pastos', (req, res) => {
 app.put('/api/pastos/:id', (req, res) => {
     const { name, fazenda_id } = req.body;
     db.run("UPDATE pastos SET name = ?, fazenda_id = ? WHERE id = ?", [name, fazenda_id, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -170,7 +286,7 @@ app.put('/api/pastos/:id', (req, res) => {
 app.delete('/api/pastos/:id', (req, res) => {
     console.log(`Deleting pasto ${req.params.id}`);
     db.run("DELETE FROM pastos WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         if (this.changes === 0) return res.status(404).json({ error: "Pasto not found" });
         res.json({ changes: this.changes });
     });
@@ -178,14 +294,56 @@ app.delete('/api/pastos/:id', (req, res) => {
 
 // --- BOIS ---
 
+// Valida pai/mãe: sem auto-parentesco, sexo coerente e sem ciclos na árvore.
+function validateParents(boiId, paiId, maeId, sexo, cb) {
+    paiId = paiId ? parseInt(paiId) : null;
+    maeId = maeId ? parseInt(maeId) : null;
+    boiId = boiId ? parseInt(boiId) : null;
+    if (!paiId && !maeId) return cb(null);
+    if (boiId && (paiId === boiId || maeId === boiId)) return cb('Um animal não pode ser pai ou mãe de si mesmo.');
+    if (paiId && maeId && paiId === maeId) return cb('Pai e mãe não podem ser o mesmo animal.');
+
+    db.all("SELECT id, pai_id, mae_id, sexo FROM bois", [], (err, rows) => {
+        if (err) return cb(null, err);
+        const map = new Map(rows.map(r => [parseInt(r.id), r]));
+        if (paiId) {
+            const pai = map.get(paiId);
+            if (!pai) return cb('Pai informado não encontrado.');
+            if (pai.sexo === 'F') return cb('O pai selecionado está cadastrado como fêmea.');
+        }
+        if (maeId) {
+            const mae = map.get(maeId);
+            if (!mae) return cb('Mãe informada não encontrada.');
+            if (mae.sexo === 'M') return cb('A mãe selecionada está cadastrada como macho.');
+        }
+        // Ciclo: o próprio animal não pode estar entre os ancestrais dos pais indicados
+        if (boiId) {
+            for (const parent of [paiId, maeId].filter(Boolean)) {
+                const anc = getAncestorIds(parent, map, new Set());
+                if (anc.has(boiId)) return cb('Parentesco inválido: o animal seria ancestral de si mesmo.');
+            }
+        }
+        cb(null);
+    });
+}
+
 app.get('/api/bois', (req, res) => {
     db.all("SELECT * FROM bois ORDER BY id DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
 
 app.post('/api/bois', (req, res) => {
+    if (!req.body || !req.body.name || !String(req.body.name).trim()) return res.status(400).json({ error: 'Informe o nome/botom do animal.' });
+    validateParents(null, req.body.pai_id, req.body.mae_id, req.body.sexo, (msg, e) => {
+        if (e) return sendError(res, e);
+        if (msg) return res.status(400).json({ error: msg });
+        insertBoi(req, res);
+    });
+});
+
+function insertBoi(req, res) {
     const { name, initial_weight, arrival_date, brinco, vendedor, local_compra, valor_boi, valor_comissao, valor_frete, raca, pai_id, mae_id, sexo, geracao, data_nascimento } = req.body;
     
     // Calculate valor_por_kg: (valor_boi + valor_comissao + valor_frete) / initial_weight
@@ -198,13 +356,35 @@ app.post('/api/bois', (req, res) => {
     db.run("INSERT INTO bois (name, initial_weight, arrival_date, brinco, vendedor, local_compra, valor_boi, valor_comissao, valor_frete, valor_por_kg, raca, pai_id, mae_id, sexo, geracao, data_nascimento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
         [name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null], 
         function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             res.json({ id: this.lastID });
         }
     );
-});
+}
+
+const BOI_FIELDS = ['name', 'initial_weight', 'arrival_date', 'brinco', 'vendedor', 'local_compra', 'valor_boi', 'valor_comissao', 'valor_frete', 'raca', 'pai_id', 'mae_id', 'sexo', 'geracao', 'data_nascimento'];
 
 app.put('/api/bois/:id', (req, res) => {
+    // Campos ausentes no corpo preservam o valor atual (ex.: tela Bovinos não envia pai/mãe/sexo
+    // e antes disso apagava a genealogia ao editar).
+    db.get("SELECT * FROM bois WHERE id = ?", [req.params.id], (e0, existing) => {
+        if (e0) return sendError(res, e0);
+        if (!existing) return res.status(404).json({ error: 'Animal não encontrado.' });
+
+        const merged = {};
+        BOI_FIELDS.forEach(f => { merged[f] = (req.body && req.body[f] !== undefined) ? req.body[f] : existing[f]; });
+        req.body = merged;
+
+        if (!merged.name || !String(merged.name).trim()) return res.status(400).json({ error: 'Informe o nome/botom do animal.' });
+        validateParents(req.params.id, merged.pai_id, merged.mae_id, merged.sexo, (msg, e) => {
+            if (e) return sendError(res, e);
+            if (msg) return res.status(400).json({ error: msg });
+            updateBoi(req, res);
+        });
+    });
+});
+
+function updateBoi(req, res) {
     const { name, initial_weight, arrival_date, brinco, vendedor, local_compra, valor_boi, valor_comissao, valor_frete, raca, pai_id, mae_id, sexo, geracao, data_nascimento } = req.body;
     
     // Calculate valor_por_kg: (valor_boi + valor_comissao + valor_frete) / initial_weight
@@ -217,15 +397,15 @@ app.put('/api/bois/:id', (req, res) => {
     db.run("UPDATE bois SET name = ?, initial_weight = ?, arrival_date = ?, brinco = ?, vendedor = ?, local_compra = ?, valor_boi = ?, valor_comissao = ?, valor_frete = ?, valor_por_kg = ?, raca = ?, pai_id = ?, mae_id = ?, sexo = ?, geracao = ?, data_nascimento = ? WHERE id = ?", 
         [name, initial_weight, arrival_date, brinco || null, vendedor || null, local_compra || null, valor_boi || null, valor_comissao || null, valor_frete || null, valor_por_kg, raca || null, pai_id || null, mae_id || null, sexo || null, geracao || null, data_nascimento || null, req.params.id], 
         function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             res.json({ changes: this.changes });
         }
     );
-});
+}
 
 app.delete('/api/bois/:id', (req, res) => {
     db.run("DELETE FROM bois WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -238,7 +418,7 @@ app.get('/api/bois/:id/last-manejo', (req, res) => {
         ORDER BY id DESC LIMIT 1
     `;
     db.get(sql, [req.params.id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(row || null);
     });
 });
@@ -287,7 +467,7 @@ app.get('/api/manejo', (req, res) => {
     }
 
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         // Add last_weight_date and last_weight_value to each row
         const processedRows = rows.map(row => {
@@ -329,7 +509,7 @@ app.get('/api/manejo', (req, res) => {
             if (pasto_id) { countSql += ` AND m.pasto_id = ?`; countParams.push(pasto_id); }
 
             db.get(countSql, countParams, (err, countRow) => {
-                if (err) return res.status(500).json({ error: err.message });
+                if (err) return sendError(res, err);
                 res.json({
                     data: processedRows,
                     total: countRow.count,
@@ -357,7 +537,7 @@ app.get('/api/manejo/history', (req, res) => {
     `;
     
     db.get(sql, [boi_id, fazenda_id, pasto_id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         if (!row) return res.json(null); // No history found
         res.json(row);
     });
@@ -370,7 +550,7 @@ app.get('/api/manejo/bois-distinct', (req, res) => {
         ORDER BY name
     `;
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -378,7 +558,7 @@ app.get('/api/manejo/bois-distinct', (req, res) => {
 app.get('/api/manejo/:id', (req, res) => {
     const sql = `SELECT * FROM manejo_pasto WHERE id = ?`;
     db.get(sql, [req.params.id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         if (!row) return res.status(404).json({ error: "Manejo not found" });
         res.json(row);
     });
@@ -419,7 +599,7 @@ app.post('/api/manejo', (req, res) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(sql, params, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
@@ -460,14 +640,14 @@ app.put('/api/manejo/:id', (req, res) => {
         WHERE id = ?`;
 
     db.run(sql, params, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
 
 app.delete('/api/manejo/:id', (req, res) => {
     db.run("DELETE FROM manejo_pasto WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -488,7 +668,7 @@ app.get('/api/manejo/history-all/:id', (req, res) => {
     `;
     
     db.all(sql, [req.params.id], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         let history = [];
         const processedDates = new Set(); // To avoid exact duplicates of date+weight
@@ -599,7 +779,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
         res.json({ totalBois, totalFazendas, totalPastos });
     } catch(err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -623,7 +803,7 @@ app.get('/api/dashboard/report/bois-fazenda', (req, res) => {
         GROUP BY f.id
     `;
     db.all(sql, [], (err, rows) => {
-        if(err) return res.status(500).json({ error: err.message });
+        if(err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -636,7 +816,7 @@ app.get('/api/dashboard/report/bois-pasto', (req, res) => {
         GROUP BY p.id
     `;
     db.all(sql, [], (err, rows) => {
-        if(err) return res.status(500).json({ error: err.message });
+        if(err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -654,7 +834,7 @@ app.get('/api/dashboard/financial', async (req, res) => {
         `;
         
         db.get(sql, [], (err, row) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             
             const totalInvested = (row.totalBoi || 0) + (row.totalComissao || 0) + (row.totalFrete || 0);
             const avgCost = row.activeCattleCount > 0 ? totalInvested / row.activeCattleCount : 0;
@@ -666,7 +846,7 @@ app.get('/api/dashboard/financial', async (req, res) => {
             });
         });
     } catch(err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -690,7 +870,7 @@ app.get('/api/dashboard/weight-stats', (req, res) => {
     `;
 
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
 
         let totalGMD = 0;
         let gmdCount = 0;
@@ -762,7 +942,7 @@ app.get('/api/dashboard/baixas-stats', (req, res) => {
         GROUP BY status
     `;
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -781,7 +961,7 @@ app.get('/api/gmp/autocomplete', (req, res) => {
     `;
     
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         // Extract unique values for each field
         const botonSet = new Set();
@@ -856,7 +1036,7 @@ app.get('/api/gmp/history', (req, res) => {
     `;
     
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         // Group by boi and flatten weight history
         const boisMap = new Map();
@@ -992,7 +1172,7 @@ app.get('/api/vacinas', (req, res) => {
     `;
     
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1005,7 +1185,7 @@ app.post('/api/vacinas', (req, res) => {
                  VALUES (?, ?, ?, ?, ?)`;
     
     db.run(sql, [boi_id, chip || null, brinco || null, vacina, data_vacina], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
@@ -1019,7 +1199,7 @@ app.put('/api/vacinas/:id', (req, res) => {
                  WHERE id = ?`;
     
     db.run(sql, [boi_id, chip || null, brinco || null, vacina, data_vacina, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -1027,7 +1207,7 @@ app.put('/api/vacinas/:id', (req, res) => {
 // Delete vaccine record
 app.delete('/api/vacinas/:id', (req, res) => {
     db.run("DELETE FROM vacinas WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -1041,7 +1221,7 @@ app.get('/api/vacinas/autocomplete', (req, res) => {
     `;
     
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const chipSet = new Set();
         const brincoSet = new Set();
@@ -1089,7 +1269,7 @@ app.get('/api/vacinas/pendentes/:boton', (req, res) => {
     `;
     
     db.all(sql, [boton], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const appliedVaccines = rows.map(row => row.vacina);
         const pendingVaccines = allVaccines.filter(v => !appliedVaccines.includes(v));
@@ -1142,7 +1322,7 @@ app.get('/api/vacinas/chart', (req, res) => {
     `;
     
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1183,7 +1363,7 @@ app.get('/api/baixas', (req, res) => {
     `;
     
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1196,7 +1376,7 @@ app.post('/api/baixas', (req, res) => {
                  VALUES (?, ?, ?, ?, ?, ?, ?)`;
     
     db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const baixaId = this.lastID;
         
@@ -1214,19 +1394,35 @@ app.post('/api/baixas', (req, res) => {
 // Update baixa record
 app.put('/api/baixas/:id', (req, res) => {
     const { boi_id, boton, brinco, ultimo_peso, data_baixa, status, observacao } = req.body;
-    
-    const sql = `UPDATE baixas 
-                 SET boi_id = ?, boton = ?, brinco = ?, ultimo_peso = ?, data_baixa = ?, status = ?, observacao = ?
-                 WHERE id = ?`;
-    
-    db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        
-        // Also update the bois status in case it changed
-        const updateBoiSql = `UPDATE bois SET baixa_status = ? WHERE id = ?`;
-        db.run(updateBoiSql, [status, boi_id], (updateErr) => {
-             if (updateErr) console.error('Error synchronizing boi status on update:', updateErr.message);
-             res.json({ changes: this.changes });
+
+    db.get("SELECT boi_id FROM baixas WHERE id = ?", [req.params.id], (e0, old) => {
+        if (e0) return sendError(res, e0);
+        if (!old) return res.status(404).json({ error: 'Registro não encontrado.' });
+
+        const sql = `UPDATE baixas
+                     SET boi_id = ?, boton = ?, brinco = ?, ultimo_peso = ?, data_baixa = ?, status = ?, observacao = ?
+                     WHERE id = ?`;
+
+        db.run(sql, [boi_id, boton, brinco || null, ultimo_peso || null, data_baixa, status, observacao || null, req.params.id], function(err) {
+            if (err) return sendError(res, err);
+            const changes = this.changes;
+
+            const finish = () => res.json({ changes });
+            const syncNew = () => {
+                db.run("UPDATE bois SET baixa_id = ?, baixa_status = ? WHERE id = ?", [req.params.id, status, boi_id], (updateErr) => {
+                    if (updateErr) console.error('Error synchronizing boi status on update:', updateErr.message);
+                    finish();
+                });
+            };
+            // Se a baixa foi movida para outro animal, libera o animal anterior
+            if (String(old.boi_id) !== String(boi_id)) {
+                db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ?", [old.boi_id], (revErr) => {
+                    if (revErr) console.error('Error reverting previous boi status:', revErr.message);
+                    syncNew();
+                });
+            } else {
+                syncNew();
+            }
         });
     });
 });
@@ -1235,13 +1431,13 @@ app.put('/api/baixas/:id', (req, res) => {
 app.delete('/api/baixas/:id', (req, res) => {
     // First get the boi_id before deleting
     db.get("SELECT boi_id FROM baixas WHERE id = ?", [req.params.id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         if (!row) return res.status(404).json({ error: "Record not found" });
 
         const boiId = row.boi_id;
 
         db.run("DELETE FROM baixas WHERE id = ?", [req.params.id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             
             // Revert boi status
             db.run("UPDATE bois SET baixa_id = NULL, baixa_status = NULL WHERE id = ?", [boiId], (updateErr) => {
@@ -1261,7 +1457,7 @@ app.get('/api/baixas/autocomplete', (req, res) => {
     `;
     
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const botonSet = new Set();
         const brincoSet = new Set();
@@ -1312,7 +1508,7 @@ app.get('/api/baixas/chart', (req, res) => {
     `;
     
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1325,7 +1521,7 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
     const boiSql = `SELECT id FROM bois WHERE name = ?`;
     
     db.get(boiSql, [boton], (err, boi) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         if (!boi) return res.json({ last_weight: null });
         
         // Get the most recent weight from manejo_pasto
@@ -1349,7 +1545,7 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
         `;
         
         db.get(weightSql, [boi.id], (err, manejo) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             
             let lastWeight = null;
             
@@ -1373,7 +1569,7 @@ app.get('/api/baixas/last-weight/:boton', (req, res) => {
             // If no manejo found, try to get initial weight from bois table
             if (!lastWeight) {
                 db.get('SELECT initial_weight FROM bois WHERE id = ?', [boi.id], (err, boiData) => {
-                    if (err) return res.status(500).json({ error: err.message });
+                    if (err) return sendError(res, err);
                     res.json({ last_weight: boiData?.initial_weight || null });
                 });
             } else {
@@ -1394,7 +1590,7 @@ app.get('/api/dietas', (req, res) => {
         ORDER BY d.data DESC, d.id DESC
     `;
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1408,14 +1604,14 @@ app.post('/api/dietas', (req, res) => {
     const sql = `INSERT INTO dietas (fazenda_id, pasto_id, qtd_bois, data, dieta_tipo, qtd_kg) VALUES (?, ?, ?, ?, ?, ?)`;
     
     db.run(sql, [fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
 
 app.delete('/api/dietas/:id', (req, res) => {
     db.run("DELETE FROM dietas WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -1429,7 +1625,7 @@ app.put('/api/dietas/:id', (req, res) => {
     const sql = `UPDATE dietas SET fazenda_id = ?, pasto_id = ?, qtd_bois = ?, data = ?, dieta_tipo = ?, qtd_kg = ? WHERE id = ?`;
     
     db.run(sql, [fazenda_id, pasto_id, qtdAnimals, data, dieta_tipo, qtd_kg, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -1453,7 +1649,7 @@ app.get('/api/pastos/:id/count', (req, res) => {
     `;
 
     db.get(sql, [pastoId], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ count: row ? row.count : 0 });
     });
 });
@@ -1530,7 +1726,7 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
     `;
 
     db.get(dietSql, [pasto_id, dbStartDate, dbEndDate], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const totalKg = row ? row.totalKg : 0;
         
@@ -1553,7 +1749,7 @@ app.get('/api/dashboard/dieta-consumption', (req, res) => {
         `;
         
         db.get(countSql, [pasto_id], (err, cRow) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) return sendError(res, err);
             
             // "Quantidade de bois do pasto selecionado de acordo com a fazenda"
             // Note: Our query uses pasto_id, which is unique enough.
@@ -1598,7 +1794,7 @@ app.get('/api/bois/pasto/:pastoId', (req, res) => {
         ORDER BY b.name
     `;
     db.all(sql, [pastoId], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1626,7 +1822,7 @@ app.get('/api/bois/:id/weight', (req, res) => {
     `;
     
     db.get(weightSql, [boiId], (err, manejo) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         let lastWeight = null;
         let lastDate = null;
@@ -1651,7 +1847,7 @@ app.get('/api/bois/:id/weight', (req, res) => {
         // If still no weight, check bois table initial_weight
         if (!lastWeight) {
             db.get('SELECT initial_weight, arrival_date FROM bois WHERE id = ?', [boiId], (err, boi) => {
-                if (err) return res.status(500).json({ error: err.message });
+                if (err) return sendError(res, err);
                 res.json({ weight: boi?.initial_weight || 0, date: boi?.arrival_date || null });
             });
         } else {
@@ -1670,7 +1866,7 @@ app.get('/api/perspectives', (req, res) => {
         ORDER BY p.created_at DESC
     `;
     db.all(sql, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json(rows);
     });
 });
@@ -1680,7 +1876,7 @@ app.post('/api/perspectives', (req, res) => {
     const sql = `INSERT INTO perspectives (boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
     db.run(sql, [boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ id: this.lastID });
     });
 });
@@ -1691,14 +1887,14 @@ app.put('/api/perspectives/:id', (req, res) => {
                  SET boi_id = ?, fazenda_id = ?, pasto_id = ?, start_date = ?, days = ?, daily_rate = ?, initial_weight = ?, final_weight = ?
                  WHERE id = ?`;
     db.run(sql, [boi_id, fazenda_id, pasto_id, start_date, days, daily_rate, initial_weight, final_weight, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
 
 app.delete('/api/perspectives/:id', (req, res) => {
     db.run("DELETE FROM perspectives WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         res.json({ changes: this.changes });
     });
 });
@@ -1739,14 +1935,13 @@ const buildAncestorTree = (boiId, depth, maxDepth, allBoisMap) => {
 const getAncestorIds = (boiId, allBoisMap, visited = new Set()) => {
     const boi = allBoisMap.get(parseInt(boiId));
     if (!boi) return visited;
-    
-    if (boi.pai_id) {
-        visited.add(boi.pai_id);
-        getAncestorIds(boi.pai_id, allBoisMap, visited);
-    }
-    if (boi.mae_id) {
-        visited.add(boi.mae_id);
-        getAncestorIds(boi.mae_id, allBoisMap, visited);
+
+    for (const parentId of [boi.pai_id, boi.mae_id]) {
+        if (!parentId) continue;
+        const pid = parseInt(parentId);
+        if (visited.has(pid)) continue; // guarda contra ciclos e reprocessamento
+        visited.add(pid);
+        getAncestorIds(pid, allBoisMap, visited);
     }
     return visited;
 };
@@ -1757,7 +1952,7 @@ app.get('/api/genealogia/arvore/:id', (req, res) => {
     // Efficiency: Fetch all bois to build tree in memory (assuming manageable dataset size for this prototype)
     // For very large datasets, we would use Recursive CTEs in SQL.
     db.all("SELECT id, name, brinco, pai_id, mae_id, sexo, geracao FROM bois", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const boisMap = new Map();
         rows.forEach(r => boisMap.set(r.id, r));
@@ -1774,15 +1969,18 @@ app.get('/api/genealogia/consanguinidade', (req, res) => {
     if (!pai_id || !mae_id) return res.status(400).json({ error: "pai_id and mae_id are required" });
     
     db.all("SELECT id, pai_id, mae_id FROM bois", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return sendError(res, err);
         
         const boisMap = new Map();
         
         // Ensure IDs are integers for consistent map keys
         rows.forEach(r => boisMap.set(parseInt(r.id), r));
         
+        // Inclui os próprios animais: pai x filha (ou mãe x filho) também é consanguíneo
         const ancestorsPai = getAncestorIds(parseInt(pai_id), boisMap, new Set());
         const ancestorsMae = getAncestorIds(parseInt(mae_id), boisMap, new Set());
+        ancestorsPai.add(parseInt(pai_id));
+        ancestorsMae.add(parseInt(mae_id));
         
         // Check intersection
         const commonAncestors = [];
