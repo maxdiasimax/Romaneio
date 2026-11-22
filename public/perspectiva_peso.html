@@ -461,9 +461,9 @@
                 savedTableBody.innerHTML = list.map(i => `
                     <tr>
                         <td>${new Date(i.created_at).toLocaleDateString('pt-BR')}</td>
-                        <td>${i.fazenda_name || '-'}</td>
-                        <td>${i.pasto_name || '-'}</td>
-                        <td>${i.boi_name || '-'}</td>
+                        <td>${escapeHtml(i.fazenda_name) || '-'}</td>
+                        <td>${escapeHtml(i.pasto_name) || '-'}</td>
+                        <td>${escapeHtml(i.boi_name) || '-'}</td>
                         <td>${i.days}</td>
                         <td>${parseFloat(i.daily_rate).toFixed(3)}</td>
                         <td>${parseFloat(i.initial_weight).toFixed(2)}</td>

@@ -281,7 +281,7 @@
                 const res = await fetch('/api/bois');
                 allBoisData = await res.json(); // Store in cache
                 const botonList = document.getElementById('boton-list');
-                botonList.innerHTML = allBoisData.map(b => `<option value="${b.name}">${b.name}${b.brinco ? ' - ' + b.brinco : ''}</option>`).join('');
+                botonList.innerHTML = allBoisData.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}${b.brinco ? ' - ' + escapeHtml(b.brinco) : ''}</option>`).join('');
             } catch (err) {
                 console.error("Error loading bois:", err);
             }

@@ -14,7 +14,11 @@ const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'postgres',
-    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }, // DB_SSL=false só para banco local de testes
+    // DB_SSL=false só para banco local de testes. Com DB_CA (certificado CA do Supabase, texto PEM) o
+    // certificado do servidor é validado; sem DB_CA mantém-se a compatibilidade (TLS sem validação).
+    ssl: process.env.DB_SSL === 'false' ? false
+        : process.env.DB_CA ? { ca: process.env.DB_CA.replace(/\\n/g, '\n'), rejectUnauthorized: true }
+        : { rejectUnauthorized: false },
     max: 10
 });
 

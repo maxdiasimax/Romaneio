@@ -60,10 +60,10 @@
             tableBody.innerHTML = data.map(f => `
                 <tr>
                     <td>${f.id}</td>
-                    <td>${f.name}</td>
-                    <td>${f.address || '-'}</td>
+                    <td>${escapeHtml(f.name)}</td>
+                    <td>${escapeHtml(f.address) || '-'}</td>
                     <td>
-                        <button onclick="editFazenda(${f.id}, '${f.name}', '${f.address || ''}')" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button data-id="${f.id}" data-name="${escapeHtml(f.name)}" data-address="${escapeHtml(f.address || '')}" onclick="editFazenda(Number(this.dataset.id), this.dataset.name, this.dataset.address)" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
                         <button onclick="confirmDeleteFazenda(${f.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
                     </td>
                 </tr>

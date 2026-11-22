@@ -130,7 +130,7 @@
                 
                 // Populate Datalist for Filter
                 const datalist = document.getElementById('fazenda-list');
-                datalist.innerHTML = allFazendas.map(f => `<option value="${f.name}">`).join('');
+                datalist.innerHTML = allFazendas.map(f => `<option value="${escapeHtml(f.name)}">`).join('');
             } catch (error) {
                 console.error("Erro ao carregar fazendas", error);
             }
@@ -175,10 +175,10 @@
             tableBody.innerHTML = pageData.map(p => `
                 <tr>
                     <td>${p.id}</td>
-                    <td>${p.name}</td>
-                    <td>${p.fazenda_name || p.fazenda_id}</td>
+                    <td>${escapeHtml(p.name)}</td>
+                    <td>${escapeHtml(p.fazenda_name || p.fazenda_id)}</td>
                     <td>
-                        <button onclick="editPasto(${p.id}, '${p.name}', ${p.fazenda_id})" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-fazenda="${Number(p.fazenda_id)}" onclick="editPasto(Number(this.dataset.id), this.dataset.name, Number(this.dataset.fazenda))" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
                         <button onclick="deletePasto(${p.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
                     </td>
                 </tr>

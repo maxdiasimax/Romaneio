@@ -84,12 +84,12 @@
             tableBody.innerHTML = data.map(u => `
                 <tr>
                     <td>${u.id}</td>
-                    <td>${u.name}</td>
-                    <td>${u.username}</td>
-                    <td>${u.celular || '-'}</td>
-                    <td>${u.profile}</td>
+                    <td>${escapeHtml(u.name)}</td>
+                    <td>${escapeHtml(u.username)}</td>
+                    <td>${escapeHtml(u.celular) || '-'}</td>
+                    <td>${escapeHtml(u.profile)}</td>
                     <td>
-                        <button onclick="editUsuario(${u.id}, '${escapeHtml(u.name)}', '${escapeHtml(u.username)}', '${escapeHtml(u.celular || '')}', '${u.profile}')" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
+                        <button data-id="${Number(u.id)}" data-name="${escapeHtml(u.name)}" data-username="${escapeHtml(u.username)}" data-celular="${escapeHtml(u.celular || '')}" data-profile="${escapeHtml(u.profile)}" onclick="editUsuario(Number(this.dataset.id), this.dataset.name, this.dataset.username, this.dataset.celular, this.dataset.profile)" style="color:var(--primary-color); background:none; border:none; cursor:pointer;">Editar</button>
                         <button onclick="confirmDeleteUsuario(${u.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;">Excluir</button>
                     </td>
                 </tr>

@@ -276,9 +276,9 @@
                 const pastoList = document.getElementById('filter-pasto-list');
                 if(fazendaId) {
                     const filtered = allPastos.filter(p => p.fazenda_id == fazendaId);
-                    pastoList.innerHTML = filtered.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+                    pastoList.innerHTML = filtered.map(p => `<option value="${escapeHtml(p.name)}" data-id="${p.id}">`).join('');
                 } else {
-                    pastoList.innerHTML = allPastos.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+                    pastoList.innerHTML = allPastos.map(p => `<option value="${escapeHtml(p.name)}" data-id="${p.id}">`).join('');
                 }
             });
             
@@ -398,7 +398,7 @@
             if (!fazendaId) return;
 
             const filtered = allPastos.filter(p => p.fazenda_id == fazendaId);
-            pastoList.innerHTML = filtered.map(p => `<option value="${p.name}" data-id="${p.id}">`).join('');
+            pastoList.innerHTML = filtered.map(p => `<option value="${escapeHtml(p.name)}" data-id="${p.id}">`).join('');
             
             if(selectedPastoId) {
                 const p = filtered.find(p => p.id == selectedPastoId);

@@ -319,10 +319,10 @@
                 
                 allBois.forEach(boi => {
                     const displayText = `${boi.name}${boi.brinco ? ' (' + boi.brinco + ')' : ''}`;
-                    botonList.innerHTML += `<option value="${boi.name}">`;
-                    pendingBotonList.innerHTML += `<option value="${boi.name}">`;
-                    appliedBotonList.innerHTML += `<option value="${boi.name}">`;
-                    filterBotonList.innerHTML += `<option value="${boi.name}">`;
+                    botonList.innerHTML += `<option value="${escapeHtml(boi.name)}">`;
+                    pendingBotonList.innerHTML += `<option value="${escapeHtml(boi.name)}">`;
+                    appliedBotonList.innerHTML += `<option value="${escapeHtml(boi.name)}">`;
+                    filterBotonList.innerHTML += `<option value="${escapeHtml(boi.name)}">`;
                 });
             } catch (err) {
                 console.error('Error loading bois:', err);

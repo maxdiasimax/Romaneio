@@ -1,3 +1,7 @@
 .env
 node_modules/
 *.log
+*.db
+*.sqlite
+*.sql.bak
+graphify-out/cache/

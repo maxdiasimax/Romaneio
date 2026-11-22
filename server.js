@@ -14,6 +14,10 @@ const PORT = process.env.PORT || 3001;
 // Defina JWT_SECRET no ambiente (Hostinger / .env). Sem ele, um segredo aleatório
 // é gerado a cada inicialização (todos os usuários precisarão logar de novo ao reiniciar).
 let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+    console.error('[SEGURANÇA] JWT_SECRET não definido. Encerrando (obrigatório em produção).');
+    process.exit(1);
+}
 if (!JWT_SECRET) {
     JWT_SECRET = crypto.randomBytes(48).toString('hex');
     console.warn('[SEGURANÇA] JWT_SECRET não definido. Usando segredo temporário; defina JWT_SECRET no ambiente.');
@@ -29,6 +33,19 @@ app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    // CSP: as páginas usam scripts/estilos inline, por isso 'unsafe-inline'; o restante limita origens externas.
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'self'",
+        "form-action 'self'"
+    ].join('; '));
     next();
 });
 
@@ -55,7 +72,9 @@ const loginAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX = 10;
 function loginLimiter(req, res, next) {
-    const key = req.ip;
+    // Chave por IP + usuário: um mesmo IP não bloqueia todos, e um usuário atacado de vários IPs é limitado pelo IP de cada um.
+    const uname = req.body && typeof req.body.username === 'string' ? req.body.username.toLowerCase().slice(0, 100) : '';
+    const key = req.ip + '|' + uname;
     const now = Date.now();
     const entry = loginAttempts.get(key);
     if (!entry || now - entry.start > LOGIN_WINDOW_MS) {
@@ -158,7 +177,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
             return res.status(403).json({ error: 'Conta da empresa suspensa. Entre em contato com o suporte.' });
         }
 
-        loginAttempts.delete(req.ip);
+        loginAttempts.delete(req.ip + '|' + String(username).toLowerCase().slice(0, 100));
         // tid = empresa do usuário; é conferido contra o banco a cada requisição (requireAuth)
         const token = jwt.sign({ id: user.id, tid: user.tenant_id, name: user.name, profile: user.profile }, JWT_SECRET, { expiresIn: TOKEN_TTL });
         res.json({ message: "Login successful", token, user: { id: user.id, name: user.name, profile: user.profile, tenant: user.tenant_name, platform: user.is_platform_admin === true } });
@@ -374,6 +393,11 @@ app.delete('/api/platform/tenants/:id', requirePlatformAdmin, async (req, res) =
     }
 });
 
+// --- Validação de entrada (helpers) ---
+const isText = (v) => typeof v === 'string' && v.trim() !== '';
+const isId = (v) => v !== null && v !== undefined && v !== '' && Number.isInteger(Number(v)) && Number(v) > 0;
+const bad = (res, msg) => res.status(400).json({ error: msg });
+
 // --- FAZENDAS ---
 
 app.get('/api/fazendas', (req, res) => {
@@ -384,7 +408,8 @@ app.get('/api/fazendas', (req, res) => {
 });
 
 app.post('/api/fazendas', (req, res) => {
-    const { name, address } = req.body;
+    const { name, address } = req.body || {};
+    if (!isText(name)) return bad(res, 'Informe o nome da fazenda.');
     db.run("INSERT INTO fazendas (tenant_id, name, address) VALUES (?, ?, ?)", [req.tenantId, name, address], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
@@ -392,7 +417,8 @@ app.post('/api/fazendas', (req, res) => {
 });
 
 app.put('/api/fazendas/:id', (req, res) => {
-    const { name, address } = req.body;
+    const { name, address } = req.body || {};
+    if (!isText(name)) return bad(res, 'Informe o nome da fazenda.');
     db.run("UPDATE fazendas SET name = ?, address = ? WHERE id = ? AND tenant_id = ?", [name, address, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
@@ -424,7 +450,9 @@ app.get('/api/pastos/fazenda/:id', (req, res) => {
 });
 
 app.post('/api/pastos', (req, res) => {
-    const { name, fazenda_id } = req.body;
+    const { name, fazenda_id } = req.body || {};
+    if (!isText(name)) return bad(res, 'Informe o nome do pasto.');
+    if (!isId(fazenda_id)) return bad(res, 'Informe a fazenda do pasto.');
     db.run("INSERT INTO pastos (tenant_id, name, fazenda_id) VALUES (?, ?, ?)", [req.tenantId, name, fazenda_id], function(err) {
         if (err) return sendError(res, err);
         res.json({ id: this.lastID });
@@ -432,7 +460,9 @@ app.post('/api/pastos', (req, res) => {
 });
 
 app.put('/api/pastos/:id', (req, res) => {
-    const { name, fazenda_id } = req.body;
+    const { name, fazenda_id } = req.body || {};
+    if (!isText(name)) return bad(res, 'Informe o nome do pasto.');
+    if (!isId(fazenda_id)) return bad(res, 'Informe a fazenda do pasto.');
     db.run("UPDATE pastos SET name = ?, fazenda_id = ? WHERE id = ? AND tenant_id = ?", [name, fazenda_id, req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         res.json({ changes: this.changes });
@@ -440,7 +470,6 @@ app.put('/api/pastos/:id', (req, res) => {
 });
 
 app.delete('/api/pastos/:id', (req, res) => {
-    console.log(`Deleting pasto ${req.params.id}`);
     db.run("DELETE FROM pastos WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
         if (this.changes === 0) return res.status(404).json({ error: "Pasto not found" });
@@ -722,7 +751,8 @@ app.get('/api/manejo/:id', (req, res) => {
 });
 
 app.post('/api/manejo', (req, res) => {
-    const { boi_id, pasto_id, fazenda_id, initial_weight_manejo, weights } = req.body;
+    const { boi_id, pasto_id, fazenda_id, initial_weight_manejo, weights } = req.body || {};
+    if (!isId(boi_id) || !isId(pasto_id) || !isId(fazenda_id)) return bad(res, 'Informe o animal, a fazenda e o pasto.');
     
     const params = [
         req.tenantId, boi_id, pasto_id, fazenda_id, initial_weight_manejo,
