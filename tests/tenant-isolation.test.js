@@ -123,6 +123,26 @@ const login = async (u, p) => (await call(null, 'POST', '/api/login', { username
   const d = await call(a, 'DELETE', `/api/fazendas/${faz}`); ok(d.j.changes === 1, 'A deleta fazenda');
   ok((await call(a, 'GET', '/api/pastos')).j.length === 0, 'cascade pastos');
   ok((await call(b, 'GET', '/api/fazendas')).j.length === 1, 'B fazenda intacta');
+  // --- Gestão de empresas (dono da plataforma) ---
+  ok((await call(a, 'GET', '/api/platform/tenants')).s === 403, 'admin de cliente NAO acessa /platform');
+  ok((await call(a, 'POST', '/api/platform/tenants', { name: 'X', admin_name: 'x', admin_username: 'xx', admin_password: '12345678' })).s === 403, 'admin de cliente NAO cria empresa');
+  ok((await call(null, 'GET', '/api/platform/tenants')).s === 401, 'platform sem token 401');
+  await call(a, 'PUT', `/api/users/${uidA}`, { name: 'Admin A', username: 'admin_a', profile: 'Admin', is_platform_admin: true });
+  ok((await call(a, 'GET', '/api/platform/tenants')).s === 403, 'is_platform_admin no corpo e ignorado');
+  await c.query("update users set is_platform_admin = true where username = 'admin_a'");
+  const A2 = await login('admin_a', 'senhaA1234'); ok(A2.user.platform === true, 'login informa platform');
+  const lst = await call(A2.token, 'GET', '/api/platform/tenants'); ok(lst.s === 200 && lst.j.length >= 2 && lst.j[0].users_count >= 1, 'lista empresas ' + lst.s);
+  const bad = await call(A2.token, 'POST', '/api/platform/tenants', { name: 'C', admin_name: 'c', admin_username: 'cc', admin_password: 'curta' }); ok(bad.s === 400, 'senha curta recusada');
+  const nt = await call(A2.token, 'POST', '/api/platform/tenants', { name: 'Empresa C', admin_name: 'Admin C', admin_username: 'admin_c', admin_password: 'senhaC1234' }); ok(nt.s === 200, 'cria empresa C ' + nt.s);
+  const dupT = await call(A2.token, 'POST', '/api/platform/tenants', { name: 'Empresa D', admin_name: 'D', admin_username: 'admin_c', admin_password: 'senhaD1234' }); ok(dupT.s === 409, 'usuario duplicado -> 409');
+  ok((await c.query("select count(*)::int n from tenants where name='Empresa D'")).rows[0].n === 0, 'rollback: empresa D nao ficou orfa');
+  const C = await login('admin_c', 'senhaC1234'); ok(C.token && (await call(C.token, 'GET', '/api/bois')).j.length === 0, 'admin C entra, ve vazio');
+  ok((await call(C.token, 'GET', '/api/platform/tenants')).s === 403, 'admin C nao e plataforma');
+  ok((await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: false })).s === 200, 'suspende C');
+  ok((await call(C.token, 'GET', '/api/bois')).s === 403, 'C suspensa -> 403');
+  ok((await call(A2.token, 'PUT', `/api/platform/tenants/${(await c.query("select id from tenants where name='Empresa A'")).rows[0].id}`, { name: 'Empresa A', active: false })).s === 400, 'nao suspende a propria empresa');
+  ok((await call(A2.token, 'PUT', `/api/platform/tenants/99999`, { name: 'Z', active: true })).s === 404, 'empresa inexistente 404');
+  ok((await call(A2.token, 'PUT', `/api/platform/tenants/${nt.j.id}`, { name: 'Empresa C2', active: true })).s === 200, 'reativa C');
   await c.end();
   console.log(`\n${passes} ok, ${fails} falhas`); process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

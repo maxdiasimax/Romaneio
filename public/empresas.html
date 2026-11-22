@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Romaneio - Gestão de Empresas</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="js/sidebar.js"></script>
+    <style>
+        .badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:.8rem; font-weight:600; }
+        .badge-ok { background:#dcf5e3; color:#17692d; }
+        .badge-off { background:#fde2e2; color:#a11a1a; }
+        .link-btn { background:none; border:none; cursor:pointer; padding:0; font:inherit; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar"></aside>
+
+        <main class="main-content">
+            <div class="table-header">
+                <h2>Gestão de Empresas</h2>
+            </div>
+
+            <!-- Nova empresa + primeiro administrador -->
+            <form id="empresa-form" autocomplete="off">
+                <div class="form-section form-grid" style="background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <div class="form-group">
+                        <label for="emp-name">Nome da empresa</label>
+                        <input type="text" id="emp-name" required placeholder="Ex.: Fazenda Boa Vista">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp-admin-name">Nome do administrador</label>
+                        <input type="text" id="emp-admin-name" required placeholder="Nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp-admin-user">Usuário do administrador</label>
+                        <input type="text" id="emp-admin-user" required autocapitalize="none" placeholder="Único em todo o sistema">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp-admin-pass">Senha inicial</label>
+                        <input type="password" id="emp-admin-pass" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+                    </div>
+                    <div class="form-actions" style="align-self: flex-end;">
+                        <button type="submit" class="btn-primary">Cadastrar empresa</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-container">
+                <table id="empresas-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Empresa</th>
+                            <th>Status</th>
+                            <th>Usuários</th>
+                            <th>Bovinos</th>
+                            <th>Criada em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const tbody = document.querySelector('#empresas-table tbody');
+        const form = document.getElementById('empresa-form');
+        let empresas = [];
+
+        function showMessage(msg, type) {
+            const old = document.querySelector('.success-message');
+            if (old) old.remove();
+            const div = document.createElement('div');
+            div.className = 'success-message toast-' + type;
+            div.innerHTML = msg; // sempre texto escapado ou fixo
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+        const toast = (title, text, type) =>
+            showMessage('<span class="toast-title">' + escapeHtml(title) + '</span>' + escapeHtml(text), type);
+
+        async function load() {
+            const res = await fetch('/api/platform/tenants');
+            if (res.status === 403) {
+                tbody.innerHTML = '<tr><td colspan="7">Acesso restrito ao administrador da plataforma.</td></tr>';
+                return;
+            }
+            if (!res.ok) { toast('Erro', 'Não foi possível carregar as empresas.', 'error'); return; }
+            empresas = await res.json();
+            tbody.innerHTML = empresas.map(e => `
+                <tr>
+                    <td>${e.id}</td>
+                    <td>${escapeHtml(e.name)}</td>
+                    <td><span class="badge ${e.active ? 'badge-ok' : 'badge-off'}">${e.active ? 'Ativa' : 'Suspensa'}</span></td>
+                    <td>${e.users_count}</td>
+                    <td>${e.bois_count}</td>
+                    <td>${escapeHtml(String(e.created_at || '').slice(0, 10).split('-').reverse().join('/'))}</td>
+                    <td>
+                        <button class="link-btn" style="color:var(--primary-color)" data-act="rename" data-id="${e.id}">Renomear</button>
+                        <button class="link-btn" style="color:${e.active ? 'red' : 'green'}; margin-left:10px" data-act="toggle" data-id="${e.id}">${e.active ? 'Suspender' : 'Reativar'}</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        async function save(e, name, active, okMsg) {
+            const res = await fetch('/api/platform/tenants/' + e.id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, active })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return toast('Erro', data.error || 'Não foi possível salvar.', 'error');
+            toast('Sucesso', okMsg, 'success');
+            load();
+        }
+
+        tbody.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('button[data-act]');
+            if (!btn) return;
+            const emp = empresas.find(x => String(x.id) === btn.dataset.id);
+            if (!emp) return;
+            if (btn.dataset.act === 'rename') {
+                const name = prompt('Novo nome da empresa:', emp.name);
+                if (name && name.trim() && name.trim() !== emp.name) save(emp, name.trim(), emp.active, 'Empresa renomeada.');
+            } else {
+                const msg = emp.active
+                    ? 'Suspender "' + emp.name + '"? Os usuários dela perdem o acesso imediatamente (os dados são mantidos).'
+                    : 'Reativar "' + emp.name + '"?';
+                if (confirm(msg)) save(emp, emp.name, !emp.active, emp.active ? 'Empresa suspensa.' : 'Empresa reativada.');
+            }
+        });
+
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const btn = form.querySelector('button[type=submit]');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/platform/tenants', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('emp-name').value,
+                        admin_name: document.getElementById('emp-admin-name').value,
+                        admin_username: document.getElementById('emp-admin-user').value,
+                        admin_password: document.getElementById('emp-admin-pass').value
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return toast('Erro', data.error || 'Não foi possível cadastrar.', 'error');
+                form.reset();
+                toast('Sucesso', 'Empresa cadastrada. Passe o usuário e a senha ao administrador dela.', 'success');
+                load();
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        load();
+    </script>
+    <script src="js/header-utils.js"></script>
+</body>
+</html>

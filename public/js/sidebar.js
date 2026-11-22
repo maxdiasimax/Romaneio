@@ -104,7 +104,8 @@
         { href: 'perspectiva_peso.html', icon: 'fa-chart-pie', label: 'Perspectiva de Peso' },
         { href: 'baixas.html', icon: 'fa-skull-crossbones', label: 'Baixa de Bois' },
         { href: 'genealogia.html', icon: 'fa-dna', label: 'Genealogia' },
-        { href: 'usuarios.html', icon: 'fa-users', label: 'Cadastro de Usuários', adminOnly: true }
+        { href: 'usuarios.html', icon: 'fa-users', label: 'Cadastro de Usuários', adminOnly: true },
+        { href: 'empresas.html', icon: 'fa-building', label: 'Gestão de Empresas', platformOnly: true }
     ];
 
     function currentPage() {
@@ -128,7 +129,10 @@
         const user = getUser() || {};
         const page = currentPage();
         const isAdmin = user.profile === 'Admin';
-        const items = MENU.filter(function (m) { return !m.adminOnly || isAdmin; });
+        const items = MENU.filter(function (m) {
+            if (m.platformOnly) return user.platform === true; // o servidor também valida
+            return !m.adminOnly || isAdmin;
+        });
         const activeItem = MENU.find(function (m) { return m.href === page; });
 
         sidebar.id = 'app-sidebar';

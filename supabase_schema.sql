@@ -19,7 +19,8 @@ create table if not exists public.users (
     username text not null unique, -- único globalmente (login sem informar empresa)
     password text not null,
     profile text not null check (profile in ('Admin', 'Usuário')),
-    celular text
+    celular text,
+    is_platform_admin boolean not null default false -- dono da plataforma; concedido só por SQL
 );
 
 create table if not exists public.fazendas (

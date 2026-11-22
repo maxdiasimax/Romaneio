@@ -120,6 +120,19 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Dono da plataforma (você): único perfil que gerencia empresas. É uma flag no banco
+// (users.is_platform_admin), concedida SOMENTE por SQL — nenhuma rota da API a define.
+// Consultada aqui (e não em requireAuth) para o resto do sistema não depender da migração 002.
+function requirePlatformAdmin(req, res, next) {
+    db.get('SELECT is_platform_admin FROM users WHERE id = ? AND tenant_id = ?', [req.user.id, req.tenantId], (err, row) => {
+        if (err) return sendError(res, err);
+        if (!row || row.is_platform_admin !== true) {
+            return res.status(403).json({ error: 'Acesso restrito ao administrador da plataforma.' });
+        }
+        next();
+    });
+}
+
 const VALID_PROFILES = ['Admin', 'Usuário'];
 
 app.post('/api/login', loginLimiter, (req, res) => {
@@ -148,7 +161,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
         loginAttempts.delete(req.ip);
         // tid = empresa do usuário; é conferido contra o banco a cada requisição (requireAuth)
         const token = jwt.sign({ id: user.id, tid: user.tenant_id, name: user.name, profile: user.profile }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-        res.json({ message: "Login successful", token, user: { id: user.id, name: user.name, profile: user.profile, tenant: user.tenant_name } });
+        res.json({ message: "Login successful", token, user: { id: user.id, name: user.name, profile: user.profile, tenant: user.tenant_name, platform: user.is_platform_admin === true } });
     });
 });
 
@@ -248,6 +261,62 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
     }
     db.run("DELETE FROM users WHERE id = ? AND tenant_id = ?", [req.params.id, req.tenantId], function(err) {
         if (err) return sendError(res, err);
+        res.json({ changes: this.changes });
+    });
+});
+
+// --- GESTÃO DE EMPRESAS (somente dono da plataforma) ---
+
+app.get('/api/platform/tenants', requirePlatformAdmin, (req, res) => {
+    db.all(`SELECT t.id, t.name, t.active, t.created_at,
+                   (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) AS users_count,
+                   (SELECT COUNT(*) FROM bois b WHERE b.tenant_id = t.id) AS bois_count
+            FROM tenants t ORDER BY t.id`, [], (err, rows) => {
+        if (err) return sendError(res, err);
+        res.json(rows);
+    });
+});
+
+// Cria a empresa e o primeiro Admin dela, em uma transação
+app.post('/api/platform/tenants', requirePlatformAdmin, async (req, res) => {
+    const { name, admin_name, admin_username, admin_password } = req.body || {};
+    const bad = [name, admin_name, admin_username].some(v => typeof v !== 'string' || !v.trim());
+    if (bad) return res.status(400).json({ error: 'Informe o nome da empresa e o nome e usuário do administrador.' });
+    if (typeof admin_password !== 'string' || admin_password.length < 8) {
+        return res.status(400).json({ error: 'A senha do administrador deve ter pelo menos 8 caracteres.' });
+    }
+    let client;
+    try {
+        const hash = await bcrypt.hash(admin_password, 10);
+        client = await db.pool.connect();
+        await client.query('BEGIN');
+        const t = await client.query('INSERT INTO tenants (name) VALUES ($1) RETURNING id', [name.trim()]);
+        await client.query(
+            "INSERT INTO users (tenant_id, name, username, password, profile) VALUES ($1, $2, $3, $4, 'Admin')",
+            [t.rows[0].id, admin_name.trim(), admin_username.trim(), hash]
+        );
+        await client.query('COMMIT');
+        res.json({ id: t.rows[0].id });
+    } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        sendError(res, err);
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// Renomeia e/ou suspende/reativa
+app.put('/api/platform/tenants/:id', requirePlatformAdmin, (req, res) => {
+    const { name, active } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || typeof active !== 'boolean') {
+        return res.status(400).json({ error: 'Informe o nome e o status da empresa.' });
+    }
+    if (String(req.params.id) === String(req.tenantId) && active === false) {
+        return res.status(400).json({ error: 'Você não pode suspender a sua própria empresa.' });
+    }
+    db.run('UPDATE tenants SET name = ?, active = ? WHERE id = ?', [name.trim(), active, req.params.id], function(err) {
+        if (err) return sendError(res, err);
+        if (this.changes === 0) return res.status(404).json({ error: 'Empresa não encontrada.' });
         res.json({ changes: this.changes });
     });
 });
