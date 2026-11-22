@@ -1,163 +1,184 @@
 # Graph Report - Romaneio  (2026-11-22)
 
 ## Corpus Check
-- 71 files · ~55,494 words
+- 73 files · ~58,671 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: .example 1, (none) 1, .css 1)
 
 ## Summary
-- 437 nodes · 655 edges · 23 communities (15 shown, 8 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 30 edges (avg confidence: 0.82)
+- 382 nodes · 518 edges · 31 communities (21 shown, 10 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- Páginas de Baixas e Multi-tenancy
-- Dependências (package.json)
-- API Vacinas/Baixas/Bois/Dietas
-- API Pesos/GMP/Pastos
-- API Fazendas/Manejo/Dieta
-- Scripts SQLite de checagem
-- Genealogia (front)
-- Scripts de debug HTTP
-- Servidor Express (server.js)
-- Banco PostgreSQL (database-pg)
-- Banco SQLite (database.js)
-- Checagem de vacinas e reinício
-- Schema Supabase e RLS
-- Dashboard e Gráficos
-- Wrapper Database
-- Testes CRUD Vacinas
-- Cálculo Valor por Kg
-- Debug de contagem
-- Debug de exclusão
+- Debug e Testes da API
+- Dependências npm
+- Genealogia
+- Servidor Express
+- Banco MySQL
+- Banco SQLite
+- Dashboard e Relatórios
+- Scripts de Checagem SQLite
+- Banco PostgreSQL
+- Checagem de Bois
+- Histórico GMP
+- Multi-tenancy
+- Bovinos e Histórico de Pesos
+- Baixas e Vacinas
+- Fazendas e Manejo
+- Sidebar
+- Filtros de Bovinos
+- Pastos e Dieta
+- Histórico de Manejo
+- Dietas
+- Pastos por Fazenda
+- Valor por Kg
+- Debug Contagem
+- Debug Exclusão
+- Consumo de Dieta
+- Fazendas Dieta
+- README
 
 ## God Nodes (most connected - your core abstractions)
-1. `manejo.html (Manejo de Pasto page)` - 21 edges
-2. `perspectiva_peso.html (Perspectiva de Peso page)` - 18 edges
-3. `vacinas.html (Gerenciar Vacinas page)` - 18 edges
+1. `Multi-tenancy design` - 19 edges
+2. `Romaneio - Manejo de Pasto` - 13 edges
+3. `Romaneio - Perspectiva de Peso` - 13 edges
 4. `historico_gmp.html (Histórico G.M.P page)` - 12 edges
-5. `pastos.html (Gerenciar Pastos page)` - 12 edges
+5. `Romaneio - Vacinas` - 10 edges
 6. `Genealogia page (genealogia.html)` - 9 edges
-7. `Database` - 8 edges
+7. `Romaneio - Baixa de Bois` - 9 edges
 8. `Database` - 8 edges
-9. `API /api/bois` - 8 edges
-10. `API /api/pastos (fazenda/:id, :id/count)` - 8 edges
+9. `Database` - 8 edges
+10. `jsPDF library` - 8 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Usuarios page (usuarios.html)` --references--> `Multi-tenancy Guide`  [INFERRED]
-  public/usuarios.html → MULTITENANT.md
-- `login-form submit handler` --calls--> `/api/login JWT with id and tid`  [INFERRED]
+- `login-form submit handler` --calls--> `Login JWT with tid`  [INFERRED]
   public/index.html → MULTITENANT.md
-- `/api/users endpoints` --references--> `requireAuth middleware`  [INFERRED]
-  public/usuarios.html → MULTITENANT.md
-- `renderPagination (historico)` --semantically_similar_to--> `renderPage (baixas)`  [INFERRED] [semantically similar]
-  public/historico.html → public/baixas.html
-- `renderPage` --semantically_similar_to--> `renderPage`  [INFERRED] [semantically similar]
-  public/pastos.html → public/historico_gmp.html
+- `Romaneio - Baixa de Bois` --conceptually_related_to--> `Multi-tenancy design`  [INFERRED]
+  public/baixas.html → MULTITENANT.md
+- `Romaneio - Fazendas` --conceptually_related_to--> `Multi-tenancy design`  [INFERRED]
+  public/fazendas.html → MULTITENANT.md
+- `Romaneio - Manejo de Pasto` --conceptually_related_to--> `Multi-tenancy design`  [INFERRED]
+  public/manejo.html → MULTITENANT.md
+- `Romaneio - Pastos` --conceptually_related_to--> `Multi-tenancy design`  [INFERRED]
+  public/pastos.html → MULTITENANT.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Tenant isolation mechanisms** — multitenant_login_jwt, multitenant_requireauth, multitenant_composite_fks, multitenant_rls_no_policies [EXTRACTED 1.00]
 - **Dashboard data loading and rendering flow** — public_dashboard_loadstats, public_dashboard_loadreports, public_dashboard_loadbaixas, public_dashboard_makechart, public_dashboard_api_dashboard_endpoints [EXTRACTED 1.00]
-- **Pages sharing sidebar, header-utils and style.css shell** — public_dashboard_page, public_fazendas_page, public_genealogia_page, public_usuarios_page, public_js_sidebar, public_js_header_utils, public_style_css [EXTRACTED 1.00]
-- **CRUD pages sharing pagination, filtering, toast and PDF export patterns** — public_baixas, public_bovinos, public_dieta, public_historico [INFERRED 0.75]
-- **Baixa registration flow (BOTON lookup, submit, reload)** — public_baixas_boton_lookup, public_baixas_form_submit, public_baixas_loadbaixas, public_baixas_applyfilters [EXTRACTED 1.00]
+- **Pages sharing sidebar, header-utils and style.css shell** — public_dashboard_page, public_genealogia_page, public_js_sidebar, public_js_header_utils, public_style_css [EXTRACTED 1.00]
 - **Historico weight view flow (select boi, load history, table and chart)** — public_historico_onboiinput, public_historico_loadhistory, public_historico_updatetable, public_historico_updatechart [EXTRACTED 1.00]
-- **Client-side pagination pattern** — public_historico_gmp_renderpage, public_pastos_renderpage, public_vacinas_renderpage [INFERRED 0.85]
-- **Manejo weighing/save flow** — public_manejo_checkandloadhistory, public_manejo_calculatetotals, public_manejo_submit_handler, public_manejo_loadmanejohistorytable [INFERRED 0.75]
-- **Toast and confirm-modal feedback pattern** — public_manejo_showmessage, public_pastos_showmessage, public_vacinas_showtoast, public_perspectiva_peso_showtoast [INFERRED 0.75]
+- **Client-side pagination pattern** — public_historico_gmp_renderpage [INFERRED 0.85]
+- **Cattle farm management pages** — public_fazendas, public_pastos, public_manejo, public_baixas, public_vacinas [INFERRED 0.75]
+- **Tenant administration** — public_empresas, public_usuarios, multitenant [INFERRED 0.75]
 
-## Communities (23 total, 8 thin omitted)
+## Communities (31 total, 10 thin omitted)
 
-### Community 0 - "Páginas de Baixas e Multi-tenancy"
-Cohesion: 0.07
-Nodes (41): Baixa status (Vendido / Morreu), Chart.js, jsPDF + autoTable (PDF export library), Multi-tenancy Guide, baixas.html (Baixa de Bois page), applyFilters (baixas), exportChartToPDF, exportGridToPDF (baixas) (+33 more)
+### Community 0 - "Debug e Testes da API"
+Cohesion: 0.06
+Nodes (25): http, options, req, http, options, req, http, makeRequest() (+17 more)
 
-### Community 1 - "Dependências (package.json)"
+### Community 1 - "Dependências npm"
 Cohesion: 0.07
 Nodes (32): author, dependencies, body-parser@^2.2.1, cors@^2.8.5, dotenv@^17.2.3, express@^5.2.1, jsonwebtoken@^9.0.3, node@^25.3.0 (+24 more)
 
-### Community 2 - "API Vacinas/Baixas/Bois/Dietas"
-Cohesion: 0.08
-Nodes (37): API /api/baixas (and /last-weight), API /api/bois, API /api/dietas, API /api/vacinas, API /api/vacinas/autocomplete, API /api/vacinas/pendentes/:boton, BOTON selection handler (auto-fill brinco and last weight), deleteBaixa (+29 more)
-
-### Community 3 - "API Pesos/GMP/Pastos"
-Cohesion: 0.10
-Nodes (34): API /api/bois/pasto/:id, API /api/bois/:id/weight, API /api/dashboard/dieta-consumption, API /api/gmp/autocomplete, API /api/gmp/history, API /api/pastos/fazenda/:id, API /api/perspectives, Chart.js library (+26 more)
-
-### Community 4 - "API Fazendas/Manejo/Dieta"
-Cohesion: 0.11
-Nodes (35): API /api/fazendas, API /api/manejo (bois-distinct, history-all/:id), API /api/manejo/history, API /api/pastos (fazenda/:id, :id/count), editDieta, loadFazendas (dieta), Fazenda to Pasto cascading select and cattle count, manejo.html (Manejo de Pasto page) (+27 more)
-
-### Community 5 - "Scripts SQLite de checagem"
-Cohesion: 0.06
-Nodes (27): db, dbPath, path, sqlite3, bcrypt, db, fs, mysql (+19 more)
-
-### Community 6 - "Genealogia (front)"
+### Community 2 - "Genealogia"
 Cohesion: 0.14
 Nodes (29): addTreeControls(), allBois, checkConsanguinity(), clearRegisterForm(), closeModal(), deleteGenealogy(), editGenealogy(), exportGenealogyGridPDF() (+21 more)
 
-### Community 7 - "Scripts de debug HTTP"
-Cohesion: 0.07
-Nodes (18): http, options, req, http, options, req, http, runTests() (+10 more)
-
-### Community 8 - "Servidor Express (server.js)"
+### Community 3 - "Servidor Express"
 Cohesion: 0.09
-Nodes (20): allowedOrigins, app, bcrypt, bodyParser, BOI_FIELDS, buildAncestorTree(), cors, crypto (+12 more)
+Nodes (21): allowedOrigins, app, bcrypt, bodyParser, BOI_FIELDS, buildAncestorTree(), cors, crypto (+13 more)
 
-### Community 9 - "Banco PostgreSQL (database-pg)"
-Cohesion: 0.11
-Nodes (12): convertPlaceholders(), Database, pool, { Pool, types }, prepare(), Globally unique username, /api/login JWT with id and tid, migrations/001_multitenant.sql (+4 more)
+### Community 4 - "Banco MySQL"
+Cohesion: 0.09
+Nodes (15): bcrypt, Database, db, fs, mysql, path, pool, dbSqlite (+7 more)
 
-### Community 10 - "Banco SQLite (database.js)"
+### Community 5 - "Banco SQLite"
 Cohesion: 0.12
 Nodes (16): bcrypt, db, dbPath, initDb(), path, sqlite3, bcrypt@^6.0.0, bcrypt (+8 more)
 
-### Community 11 - "Checagem de vacinas e reinício"
+### Community 6 - "Dashboard e Relatórios"
+Cohesion: 0.13
+Nodes (21): /api/dashboard/* endpoints (stats, financial, weight-stats, report, baixas-stats), Chart plugins (centerText, barValueLabels, pieSliceLabels), Chart.js library, horizontalBar, loadBaixas, loadReports, loadStats, makeChart (+13 more)
+
+### Community 7 - "Scripts de Checagem SQLite"
 Cohesion: 0.12
 Nodes (16): db, dbPath, path, sqlite3, Instructions to Restart Server, Stale Node server lacks vacinas endpoints (Cannot POST /api/vacinas), Vacinas API endpoints in server.js, vacinas.html screen (+8 more)
 
-### Community 12 - "Schema Supabase e RLS"
+### Community 8 - "Banco PostgreSQL"
+Cohesion: 0.15
+Nodes (8): convertPlaceholders(), Database, pool, { Pool, types }, prepare(), args, bcrypt, useEnv
+
+### Community 9 - "Checagem de Bois"
+Cohesion: 0.12
+Nodes (13): db, dbPath, path, sqlite3, data, db, dbPath, path (+5 more)
+
+### Community 10 - "Histórico GMP"
+Cohesion: 0.23
+Nodes (15): API /api/gmp/autocomplete, API /api/gmp/history, Chart.js library, jsPDF + autotable library, historico_gmp.html (Histórico G.M.P page), applyFilters, Status dot (Vendido/Morreu) tooltip, clearFilters (+7 more)
+
+### Community 11 - "Multi-tenancy"
 Cohesion: 0.17
-Nodes (14): Composite FKs (tenant_id, id), requireAuth middleware, RLS enabled without policies, supabase_schema.sql (new DB), /api/fazendas endpoints, confirmDeleteFazenda, fazenda-form submit handler, loadFazendas (+6 more)
+Nodes (15): Multi-tenancy design, Composite FKs (tenant_id,id), Deploy order: backup, migrate, deploy code, Login JWT with tid, Migration 001_multitenant.sql, Migration 002_platform_admin.sql, Platform admin flag (is_platform_admin), requireAuth tenant resolution (+7 more)
 
-### Community 13 - "Dashboard e Gráficos"
-Cohesion: 0.19
-Nodes (15): /api/dashboard/* endpoints (stats, financial, weight-stats, report, baixas-stats), Chart plugins (centerText, barValueLabels, pieSliceLabels), Chart.js library, horizontalBar, loadBaixas, loadReports, loadStats, makeChart (+7 more)
+### Community 12 - "Bovinos e Histórico de Pesos"
+Cohesion: 0.15
+Nodes (14): Chart.js library, jsPDF library, bovinos.html (Gerenciar Bovinos page), exportToPDF (bovinos), historico.html (Historico de Pesos page), exportToPDF (historico), Romaneio - Perspectiva de Peso, API /api/bois/:id/weight (+6 more)
 
-### Community 15 - "Testes CRUD Vacinas"
-Cohesion: 0.43
-Nodes (7): http, makeRequest(), testAutocomplete(), testCreate(), testDelete(), testRead(), testUpdate()
+### Community 13 - "Baixas e Vacinas"
+Cohesion: 0.20
+Nodes (10): Romaneio - Baixa de Bois, API /api/baixas, API /api/baixas/last-weight/:boton, API /api/bois, Romaneio - Vacinas, API /api/bois, API /api/vacinas, API /api/vacinas/:id (+2 more)
 
-## Ambiguous Edges - Review These
-- `exportToPDF` → `chartInstance (referenced but undefined in vacinas.html; exportToPDF never wired)`  [AMBIGUOUS]
-  public/vacinas.html · relation: references
+### Community 14 - "Fazendas e Manejo"
+Cohesion: 0.20
+Nodes (10): Romaneio - Fazendas, API /api/fazendas, API /api/fazendas/:id, Romaneio - Manejo de Pasto, API /api/bois, API /api/fazendas, API /api/manejo, API /api/manejo/:id (+2 more)
+
+### Community 15 - "Sidebar"
+Cohesion: 0.31
+Nodes (7): currentPage(), enhanceTables(), getUser(), initials(), isMobile(), labelRows(), renderLayout()
+
+### Community 16 - "Filtros de Bovinos"
+Cohesion: 0.22
+Nodes (8): applyFilters (bovinos), deleteBoi, boi form submit handler (POST/PUT), loadBois, populateAutocomplete (bovinos), renderPage (bovinos), showConfirmModal, showMessage (bovinos toast)
+
+### Community 17 - "Pastos e Dieta"
+Cohesion: 0.22
+Nodes (8): dieta.html (Controle de Dieta page), Romaneio - Pastos, API /api/fazendas, API /api/pastos, API /api/pastos/:id, Romaneio - Cadastro de Usuários, API /api/users, API /api/users/:id
+
+### Community 18 - "Histórico de Manejo"
+Cohesion: 0.29
+Nodes (7): API /api/manejo (bois-distinct, history-all/:id), init (historico), loadHistory, onBoiInput, renderPagination (historico), updateChart (historico weight bar chart), updateTable (historico, weight gain calc)
+
+### Community 19 - "Dietas"
+Cohesion: 0.33
+Nodes (6): API /api/dietas, deleteDieta, loadDietas, renderTable (dieta), showToast (dieta), Dieta types (Proteinado 01/03/05, Dieta 1%, Dieta Total)
+
+### Community 20 - "Pastos por Fazenda"
+Cohesion: 0.67
+Nodes (3): API /api/pastos (fazenda/:id, :id/count), editDieta, Fazenda to Pasto cascading select and cattle count
 
 ## Knowledge Gaps
-- **32 isolated node(s):** `RLS enabled without policies`, `migrations/001_multitenant.sql`, `supabase_schema.sql (new DB)`, `Globally unique username`, `vacinas.html screen` (+27 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 157 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **64 isolated node(s):** `vacinas.html screen`, `romaneio.db (SQLite)`, `applyFilters (bovinos)`, `populateAutocomplete (bovinos)`, `editBoi` (+59 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 187 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Shared schema with tenant_id model` connect `Schema Supabase e RLS` to `Páginas de Baixas e Multi-tenancy`, `Dependências (package.json)`?**
-  _High betweenness centrality (0.424) - this node is a cross-community bridge._
-- **What connects `RLS enabled without policies`, `migrations/001_multitenant.sql`, `supabase_schema.sql (new DB)` to the rest of the system?**
-  _32 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Páginas de Baixas e Multi-tenancy` be split into smaller, more focused modules?**
-  _Cohesion score 0.06956521739130435 - nodes in this community are weakly interconnected._
-- **Why does `Multi-tenancy Guide` connect `Páginas de Baixas e Multi-tenancy` to `Schema Supabase e RLS`?**
-  _High betweenness centrality (0.398) - this node is a cross-community bridge._
-- **Should `Dependências (package.json)` be split into smaller, more focused modules?**
+- **Why does `Multi-tenancy design` connect `Multi-tenancy` to `Dependências npm`, `Banco PostgreSQL`, `Bovinos e Histórico de Pesos`, `Baixas e Vacinas`, `Fazendas e Manejo`, `Pastos e Dieta`?**
+  _High betweenness centrality (0.372) - this node is a cross-community bridge._
+- **Are the 8 inferred relationships involving `Multi-tenancy design` (e.g. with `Romaneio - Baixa de Bois` and `Romaneio - Gestão de Empresas`) actually correct?**
+  _`Multi-tenancy design` has 8 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `vacinas.html screen`, `romaneio.db (SQLite)`, `applyFilters (bovinos)` to the rest of the system?**
+  _64 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Debug e Testes da API` be split into smaller, more focused modules?**
+  _Cohesion score 0.06401137980085349 - nodes in this community are weakly interconnected._
+- **Why does `bcrypt` connect `Banco SQLite` to `Banco PostgreSQL`, `Dependências npm`, `Servidor Express`, `Banco MySQL`?**
+  _High betweenness centrality (0.234) - this node is a cross-community bridge._
+- **Are the 4 inferred relationships involving `Romaneio - Manejo de Pasto` (e.g. with `Multi-tenancy design` and `Romaneio - Fazendas`) actually correct?**
+  _`Romaneio - Manejo de Pasto` has 4 INFERRED edges - model-reasoned connections that need verification._
+- **Should `Dependências npm` be split into smaller, more focused modules?**
   _Cohesion score 0.06685633001422475 - nodes in this community are weakly interconnected._
-- **Should `API Vacinas/Baixas/Bois/Dietas` be split into smaller, more focused modules?**
-  _Cohesion score 0.08108108108108109 - nodes in this community are weakly interconnected._
-
-### Low-confidence Hints
-_AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
-
-- **What is the exact relationship between `exportToPDF` and `chartInstance (referenced but undefined in vacinas.html; exportToPDF never wired)`?**
-  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
