@@ -87,6 +87,8 @@
           <div class="table-container" style="margin-bottom:0">
             <div class="table-header"><h3>Qtd. de BOTONS por Fazenda</h3></div>
             <table id="table-bois-fazenda"><thead><tr><th>Fazenda</th><th>Qtd. BOTONS (Manejo)</th></tr></thead><tbody></tbody></table>
+            <div class="chart-sub" style="margin-top:1.2rem">Proporção de botons em cada fazenda</div>
+            <div class="chart-box"><canvas id="fazendaPieChart"></canvas></div>
           </div>
           <div class="table-container" style="margin-bottom:0">
             <div class="table-header"><h3>Qtd. de BOTONS por Pasto</h3></div>
@@ -105,7 +107,8 @@
       Chart.defaults.font.family = "Inter, system-ui, sans-serif";
       Chart.defaults.font.size = 12;
       Chart.defaults.color = "#5b6b86";
-      Chart.defaults.animation = { duration: 1100, easing: "easeOutQuart" };
+      Chart.defaults.animation.duration = 1100;
+      Chart.defaults.animation.easing = "easeOutQuart";
       Chart.defaults.plugins.legend.labels.usePointStyle = true;
       Chart.defaults.plugins.legend.labels.pointStyle = "circle";
       Chart.defaults.plugins.legend.labels.boxWidth = 8;
@@ -234,6 +237,51 @@
         });
       }
 
+      // Mostra o valor dentro da extremidade de cada barra horizontal
+      const barValueLabels = {
+        id: "barValueLabels",
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const meta = chart.getDatasetMeta(0);
+          const values = chart.data.datasets[0].data;
+          ctx.save();
+          ctx.font = "700 13px Inter, sans-serif";
+          ctx.textBaseline = "middle";
+          meta.data.forEach((bar, i) => {
+            const v = values[i];
+            if (v == null) return;
+            const text = String(v);
+            const fits = bar.x - bar.base > ctx.measureText(text).width + 20;
+            ctx.textAlign = fits ? "right" : "left";
+            ctx.fillStyle = fits ? "#ffffff" : "#0c2559";
+            ctx.fillText(text, fits ? bar.x - 12 : bar.x + 8, bar.y);
+          });
+          ctx.restore();
+        },
+      };
+
+      const PIE_COLORS = ["#0c2559", "#2563eb", "#60a5fa", "#16a34a", "#f59e0b", "#8b5cf6", "#dc2626", "#14b8a6", "#ec4899", "#64748b"];
+      // Escreve quantidade e percentual dentro de cada fatia
+      const pieSliceLabels = {
+        id: "pieSliceLabels",
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const values = chart.data.datasets[0].data;
+          const total = values.reduce((a, b) => a + b, 0) || 1;
+          ctx.save();
+          ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          chart.getDatasetMeta(0).data.forEach((arc, i) => {
+            if (!values[i] || values[i] / total < 0.05) return;
+            const p = arc.getCenterPoint();
+            ctx.font = "800 14px Inter, sans-serif";
+            ctx.fillText(String(values[i]), p.x, p.y - 7);
+            ctx.font = "600 11px Inter, sans-serif";
+            ctx.fillText(Math.round((values[i] / total) * 100) + "%", p.x, p.y + 9);
+          });
+          ctx.restore();
+        },
+      };
+
       function horizontalBar(id, labels, values, c1, c2) {
         makeChart(id, {
           type: "bar",
@@ -247,6 +295,7 @@
               y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false } },
             },
           },
+          plugins: [barValueLabels],
         });
       }
 
@@ -263,6 +312,20 @@
             pastos.map((r) => `<tr><td>${esc(r.pasto)}</td><td>${r.qtd_bois}</td></tr>`).join("") || empty;
 
           horizontalBar("fazendaChart", fazendas.map((r) => r.fazenda), fazendas.map((r) => r.qtd_bois), "#60a5fa", "#0c2559");
+          makeChart("fazendaPieChart", {
+            type: "pie",
+            data: {
+              labels: fazendas.map((r) => r.fazenda),
+              datasets: [{ data: fazendas.map((r) => Number(r.qtd_bois)),
+                backgroundColor: fazendas.map((_, i) => PIE_COLORS[i % PIE_COLORS.length]),
+                borderColor: "#fff", borderWidth: 3, hoverOffset: 10 }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { position: "bottom", labels: { padding: 14 } } },
+            },
+            plugins: [pieSliceLabels],
+          });
           document.getElementById("pastoBox").style.height = Math.max(240, pastos.length * 38 + 60) + "px";
           horizontalBar("pastoChart", pastos.map((r) => r.pasto), pastos.map((r) => r.qtd_bois), "#93c5fd", "#4f6d94");
         } catch (err) { console.error("Erro ao carregar relatórios", err); }
